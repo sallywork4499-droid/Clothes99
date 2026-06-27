@@ -1,0 +1,24 @@
+{
+  "name": "Clothes 99",
+  "short_name": "Clothes 99",
+  "description": "Quản lý tủ đồ thông minh – mua ít, dùng nhiều, sống gọn",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#F7F6F3",
+  "theme_color": "#5B4FE9",
+  "orientation": "portrait-primary",
+  "icons": [
+    {
+      "src": "https://i.postimg.cc/yYGKB1pt/hinhnen.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "https://i.postimg.cc/yYGKB1pt/hinhnen.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ]
+}

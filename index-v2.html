@@ -8,6 +8,8 @@
   <meta name="theme-color" content="#5B4FE9" />
   <meta name="apple-mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-status-bar-style" content="default" />
+  <meta name="apple-mobile-web-app-title" content="Clothes 99" />
+  <link rel="manifest" href="/manifest.json" />
   <style>
     :root {
       --bg: #F7F6F3;
@@ -2031,6 +2033,10 @@ function init() {
 }
 
 init();
+
+if ('serviceWorker' in navigator) {
+  window.addEventListener('load', () => navigator.serviceWorker.register('/sw.js'));
+}
 </script>
 </body>
 </html>
