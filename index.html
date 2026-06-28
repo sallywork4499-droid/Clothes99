@@ -449,7 +449,7 @@ function handleImageUpload(e) {
 
 // Seed demo data if empty
 function seedDemoData() {
-  if (DB.items.length > 0) return;
+  if (DB.onboardingDone || DB.items.length > 0) return;
   const now = new Date();
   const daysAgo = d => new Date(now - d*86400000).toISOString();
 
