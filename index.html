@@ -1,0 +1,2420 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <title>Clothes 99 – Tủ đồ thông minh</title>
+  <meta name="description" content="Quản lý quần áo, mỹ phẩm và giày dép. Mua ít, dùng nhiều, sống gọn." />
+  <meta name="theme-color" content="#5B4FE9" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="default" />
+  <meta name="apple-mobile-web-app-title" content="Clothes 99" />
+  <link rel="manifest" href="/manifest.json" />
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <style>
+    :root {
+      --bg: #F7F6F3;
+      --surface: #FFFFFF;
+      --primary: #5B4FE9;
+      --primary-light: #EDE9FF;
+      --primary-dark: #4338CA;
+      --text: #1C1C28;
+      --text-muted: #6B7280;
+      --text-light: #9CA3AF;
+      --border: #E8E6F0;
+      --success: #059669;
+      --success-light: #D1FAE5;
+      --warning: #D97706;
+      --warning-light: #FEF3C7;
+      --danger: #DC2626;
+      --danger-light: #FEE2E2;
+      --cat-clothing: #6366F1;
+      --cat-cosmetic: #EC4899;
+      --cat-footwear: #7C3AED;
+      --cat-bag: #0891B2;
+      --nav-h: 64px;
+      --r: 12px;
+      --r-sm: 8px;
+      --shadow: 0 1px 3px rgba(0,0,0,0.08),0 1px 2px rgba(0,0,0,0.04);
+      --shadow-md: 0 4px 6px rgba(0,0,0,0.07),0 2px 4px rgba(0,0,0,0.04);
+    }
+    *{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent;}
+    html,body{height:100%;overscroll-behavior:none;}
+    body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;
+      background:var(--bg);color:var(--text);font-size:15px;line-height:1.5;
+      -webkit-font-smoothing:antialiased;}
+
+    /* ── LAYOUT ── */
+    #app{min-height:100dvh;padding-bottom:calc(var(--nav-h) + 8px);}
+    .page{display:none;}
+    .page.active{display:block;animation:fadeIn 0.15s ease;}
+    @keyframes fadeIn{from{opacity:0;transform:translateY(4px)}to{opacity:1;transform:translateY(0)}}
+
+    .page-header{position:sticky;top:0;background:var(--surface);border-bottom:1px solid var(--border);
+      padding:10px 16px;display:flex;align-items:center;gap:10px;z-index:10;min-height:52px;}
+    .page-header h1{font-size:17px;font-weight:700;flex:1;}
+    .page-content{padding:14px 16px;}
+
+    /* ── BOTTOM NAV ── */
+    #bottom-nav{position:fixed;bottom:0;left:0;right:0;height:var(--nav-h);
+      background:var(--surface);border-radius:22px 22px 0 0;
+      box-shadow:0 -4px 16px rgba(43,36,32,0.07);
+      display:flex;align-items:center;padding:0 6px;z-index:100;
+      padding-bottom:env(safe-area-inset-bottom);}
+    .nav-item{flex:1;display:flex;flex-direction:column;align-items:center;
+      justify-content:center;gap:2px;padding:8px 4px;border:none;background:none;
+      cursor:pointer;color:var(--text-light);font-size:10px;font-weight:500;
+      border-radius:var(--r-sm);transition:color 0.15s;}
+    .nav-item.active{color:var(--primary);}
+    .nav-icon{font-size:22px;line-height:1;padding:2px 12px;border-radius:12px;transition:background 0.15s;
+      display:inline-flex;align-items:center;justify-content:center;}
+    .nav-icon svg{width:21px;height:21px;stroke:currentColor;}
+    .nav-item.active .nav-icon{background:var(--primary-light);}
+    .nav-fab{flex:1;display:flex;align-items:center;justify-content:center;}
+    .nav-fab-btn{width:50px;height:50px;background:var(--primary);color:#fff;
+      border:none;border-radius:50%;font-size:26px;display:flex;align-items:center;
+      justify-content:center;cursor:pointer;box-shadow:0 4px 12px rgba(91,79,233,0.4);
+      margin-top:-16px;transition:transform 0.15s;}
+    .nav-fab-btn:active{transform:scale(0.93);}
+
+    /* ── BUTTONS ── */
+    .btn{display:inline-flex;align-items:center;justify-content:center;gap:6px;
+      padding:10px 18px;border-radius:var(--r-sm);border:none;font-size:14px;
+      font-weight:600;cursor:pointer;transition:opacity 0.15s,transform 0.1s;
+      white-space:nowrap;text-decoration:none;}
+    .btn:active{transform:scale(0.97);}
+    .btn-primary{background:var(--primary);color:#fff;}
+    .btn-secondary{background:var(--primary-light);color:var(--primary);}
+    .btn-ghost{background:transparent;color:var(--text-muted);border:1.5px solid var(--border);}
+    .btn-danger{background:var(--danger-light);color:var(--danger);}
+    .btn-success{background:var(--success-light);color:var(--success);}
+    .btn-full{width:100%;}
+    .btn-sm{padding:7px 14px;font-size:13px;}
+
+    /* ── FORMS ── */
+    .form-group{margin-bottom:16px;}
+    .form-label{display:block;font-size:13px;font-weight:600;margin-bottom:6px;}
+    .form-label .opt{font-weight:400;color:var(--text-light);margin-left:4px;}
+    .form-input,.form-select,.form-textarea{width:100%;padding:11px 14px;
+      border:1.5px solid var(--border);border-radius:var(--r-sm);font-size:15px;
+      background:var(--surface);color:var(--text);outline:none;
+      transition:border-color 0.15s;-webkit-appearance:none;font-family:inherit;}
+    .form-input:focus,.form-select:focus,.form-textarea:focus{border-color:var(--primary);}
+    .form-textarea{resize:vertical;min-height:76px;}
+    .form-hint{font-size:12px;color:var(--text-light);margin-top:4px;}
+    .form-row{display:flex;gap:10px;}
+    .form-row .form-group{flex:1;}
+
+    /* ── CHIPS ── */
+    .chip-group{display:flex;flex-wrap:wrap;gap:6px;}
+    .chip{padding:5px 12px;border-radius:20px;font-size:13px;font-weight:500;
+      cursor:pointer;border:1.5px solid var(--border);background:var(--surface);
+      color:var(--text-muted);transition:all 0.15s;user-select:none;}
+    .chip.selected{background:var(--primary-light);border-color:var(--primary);color:var(--primary);}
+    .chip-sm{padding:3px 10px;font-size:12px;}
+
+    /* ── BADGES ── */
+    .badge{display:inline-flex;align-items:center;padding:2px 8px;
+      border-radius:20px;font-size:11px;font-weight:600;}
+    .badge-clothing{background:#EEF2FF;color:var(--cat-clothing);}
+    .badge-cosmetic{background:#FDF2F8;color:var(--cat-cosmetic);}
+    .badge-footwear{background:#F3E8FF;color:var(--cat-footwear);}
+    .badge-bag{background:#ECFEFF;color:var(--cat-bag);}
+    .badge-danger{background:var(--danger-light);color:var(--danger);}
+    .badge-warning{background:var(--warning-light);color:var(--warning);}
+    .badge-success{background:var(--success-light);color:var(--success);}
+    .badge-muted{background:#F3F4F6;color:var(--text-muted);}
+
+    /* ── ITEM CARD ── */
+    .item-card{background:var(--surface);border-radius:var(--r);box-shadow:var(--shadow);
+      display:flex;align-items:center;gap:12px;padding:12px;cursor:pointer;
+      transition:transform 0.1s;}
+    .item-card:active{transform:scale(0.98);}
+    .item-thumb{width:56px;height:56px;border-radius:var(--r-sm);background:var(--bg);
+      display:flex;align-items:center;justify-content:center;font-size:26px;
+      flex-shrink:0;overflow:hidden;}
+    .item-thumb img{width:100%;height:100%;object-fit:cover;}
+    .item-info{flex:1;min-width:0;}
+    .item-name{font-weight:600;font-size:15px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+    .item-meta{font-size:12px;color:var(--text-muted);margin-top:1px;}
+    .item-badges{display:flex;gap:4px;flex-wrap:wrap;margin-top:5px;}
+
+    /* ── STAT GRID ── */
+    .stat-grid{display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px;}
+    .stat-card{background:var(--surface);border-radius:var(--r);padding:14px;box-shadow:var(--shadow);}
+    .stat-card.clickable{cursor:pointer;transition:transform 0.1s;}
+    .stat-card.clickable:active{transform:scale(0.96);}
+    /* ── SPENDING HISTORY ── */
+    .spend-row{display:flex;align-items:center;gap:10px;margin-bottom:9px;}
+    .spend-row:last-child{margin-bottom:0;}
+    .spend-label{width:44px;font-size:12px;color:var(--text-muted);flex-shrink:0;}
+    .spend-bar-track{flex:1;background:var(--bg);border-radius:6px;overflow:hidden;height:16px;}
+    .spend-bar-fill{height:100%;background:var(--primary);border-radius:6px;transition:width 0.3s;}
+    .spend-amount{width:84px;text-align:right;font-size:12px;font-weight:600;flex-shrink:0;}
+    .stat-value{font-size:24px;font-weight:800;line-height:1.1;}
+    .stat-label{font-size:12px;color:var(--text-muted);margin-top:2px;}
+    .stat-icon{font-size:20px;margin-bottom:6px;}
+    .stat-icon-circle{width:40px;height:40px;border-radius:50%;display:flex;
+      align-items:center;justify-content:center;font-size:19px;margin-bottom:8px;}
+
+    /* ── QUICK ACTIONS ROW ── */
+    .quick-actions{display:flex;justify-content:space-between;gap:6px;margin-bottom:8px;}
+    .quick-action{display:flex;flex-direction:column;align-items:center;gap:7px;
+      background:none;border:none;cursor:pointer;flex:1;padding:0;}
+    .quick-action-icon{width:52px;height:52px;border-radius:50%;background:var(--surface);
+      display:flex;align-items:center;justify-content:center;font-size:21px;
+      box-shadow:var(--shadow);transition:transform 0.1s;}
+    .quick-action:active .quick-action-icon{transform:scale(0.92);}
+    .quick-action-label{font-size:11px;color:var(--text-muted);font-weight:600;text-align:center;}
+
+    /* ── TABS ── */
+    .tab-bar{display:flex;gap:0;background:var(--surface);border-bottom:1px solid var(--border);
+      overflow-x:auto;-webkit-overflow-scrolling:touch;scrollbar-width:none;}
+    .tab-bar::-webkit-scrollbar{display:none;}
+    .tab-btn{padding:10px 18px;border:none;background:none;font-size:14px;font-weight:500;
+      color:var(--text-muted);cursor:pointer;white-space:nowrap;
+      border-bottom:2px solid transparent;margin-bottom:-1px;transition:all 0.15s;}
+    .tab-btn.active{color:var(--primary);border-bottom-color:var(--primary);font-weight:600;}
+
+    /* ── SECTION ── */
+    .section-hd{display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;}
+    .section-title{font-size:16px;font-weight:700;}
+    .section-link{font-size:13px;color:var(--primary);font-weight:500;cursor:pointer;background:none;border:none;}
+
+    /* ── EMPTY STATE ── */
+    .empty{text-align:center;padding:48px 24px;color:var(--text-muted);}
+    .empty-icon{font-size:52px;margin-bottom:12px;}
+    .empty h3{font-size:16px;font-weight:600;color:var(--text);margin-bottom:6px;}
+    .empty p{font-size:14px;line-height:1.6;}
+
+    /* ── REC BOX ── */
+    .rec-box{border-radius:var(--r);padding:14px 16px;margin-bottom:14px;}
+    .rec-box.buy{background:var(--success-light);border-left:3px solid var(--success);}
+    .rec-box.wait{background:var(--warning-light);border-left:3px solid var(--warning);}
+    .rec-box.skip{background:var(--danger-light);border-left:3px solid var(--danger);}
+    .rec-title{font-weight:700;font-size:15px;}
+    .rec-note{font-size:13px;margin-top:4px;line-height:1.5;}
+
+    /* ── MODAL ── */
+    .modal-overlay{position:fixed;inset:0;background:rgba(0,0,0,0.5);z-index:200;
+      display:flex;align-items:flex-end;opacity:0;pointer-events:none;transition:opacity 0.25s;}
+    .modal-overlay.open{opacity:1;pointer-events:all;}
+    .modal-sheet{background:var(--surface);border-radius:20px 20px 0 0;width:100%;
+      max-height:88dvh;overflow-y:auto;padding:0 0 32px;
+      transform:translateY(100%);transition:transform 0.3s ease;}
+    .modal-overlay.open .modal-sheet{transform:translateY(0);}
+    .modal-handle{width:36px;height:4px;background:var(--border);border-radius:2px;margin:12px auto 4px;}
+    .modal-body{padding:0 16px;}
+    .modal-title{font-size:17px;font-weight:700;padding:12px 16px 8px;}
+
+    /* ── DECLUTTER ACTIONS ── */
+    .action-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:10px;}
+    .action-btn{padding:14px 8px;border-radius:var(--r);border:1.5px solid var(--border);
+      background:var(--surface);text-align:center;cursor:pointer;transition:all 0.15s;}
+    .action-btn:active{transform:scale(0.96);}
+    .action-btn .a-icon{font-size:26px;display:block;margin-bottom:4px;}
+    .action-btn .a-label{font-size:13px;font-weight:600;}
+    .action-btn .a-desc{font-size:11px;color:var(--text-muted);margin-top:2px;}
+    .action-btn.keep{border-color:var(--success);background:var(--success-light);}
+    .action-btn.sell{border-color:var(--warning);background:var(--warning-light);}
+    .action-btn.donate{border-color:var(--primary);background:var(--primary-light);}
+    .action-btn.recycle{border-color:var(--success);background:var(--success-light);}
+
+    /* ── CAT SELECTOR ── */
+    .cat-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:20px;}
+    .cat-opt{border:2px solid var(--border);border-radius:var(--r);padding:16px 8px;
+      text-align:center;cursor:pointer;transition:all 0.15s;}
+    .cat-opt.sel-CLOTHING{border-color:var(--cat-clothing);background:#EEF2FF;}
+    .cat-opt.sel-COSMETIC{border-color:var(--cat-cosmetic);background:#FDF2F8;}
+    .cat-opt.sel-FOOTWEAR{border-color:var(--cat-footwear);background:#F3E8FF;}
+    .cat-opt.sel-BAG{border-color:var(--cat-bag);background:#ECFEFF;}
+    .cat-opt .c-icon{font-size:30px;display:block;margin-bottom:6px;}
+    .cat-opt .c-name{font-size:13px;font-weight:600;}
+
+    /* ── BACK BTN ── */
+    .back-btn{width:36px;height:36px;display:flex;align-items:center;justify-content:center;
+      border-radius:50%;border:none;background:var(--bg);cursor:pointer;font-size:18px;flex-shrink:0;}
+
+    /* ── TOAST ── */
+    #toast{position:fixed;bottom:calc(var(--nav-h) + 16px);left:50%;
+      transform:translateX(-50%) translateY(10px);background:var(--text);color:#fff;
+      padding:10px 20px;border-radius:20px;font-size:14px;font-weight:500;
+      z-index:400;opacity:0;transition:opacity 0.2s,transform 0.2s;
+      white-space:nowrap;pointer-events:none;max-width:90vw;text-align:center;}
+    #toast.show{opacity:1;transform:translateX(-50%) translateY(0);}
+
+    /* ── ONBOARDING ── */
+    #page-onboarding{min-height:100dvh;display:flex;flex-direction:column;
+      align-items:center;justify-content:center;padding:32px 24px;text-align:center;
+      background:var(--bg);}
+    .ob-logo{margin-bottom:16px;}
+    .ob-logo img{height:160px;width:auto;object-fit:contain;}
+    .ob-title{font-size:28px;font-weight:800;margin-bottom:8px;
+      background:linear-gradient(135deg,var(--primary),var(--cat-cosmetic));
+      -webkit-background-clip:text;-webkit-text-fill-color:transparent;}
+    .ob-sub{font-size:15px;color:var(--text-muted);line-height:1.7;margin-bottom:28px;}
+    .ob-feats{list-style:none;margin-bottom:32px;text-align:left;width:100%;max-width:320px;}
+    .ob-feats li{display:flex;align-items:center;gap:12px;padding:10px 0;
+      border-bottom:1px solid var(--border);font-size:14px;}
+    .ob-feats li:last-child{border-bottom:none;}
+    .ob-feats .fi{font-size:22px;width:32px;text-align:center;}
+
+    /* ── AUTH GATE ── */
+    #auth-gate{min-height:100dvh;display:flex;flex-direction:column;
+      align-items:center;justify-content:center;padding:32px 24px;
+      background:var(--bg);}
+    .auth-box{width:100%;max-width:340px;}
+    .auth-box h1{font-size:24px;font-weight:800;margin-bottom:24px;text-align:center;}
+    .auth-sub{font-size:13px;color:var(--text-muted);text-align:center;margin-bottom:24px;line-height:1.6;}
+    .auth-toggle{background:none;border:none;color:var(--primary);font-size:13px;
+      font-weight:600;cursor:pointer;margin-top:14px;width:100%;text-align:center;}
+    .auth-msg{font-size:13px;margin-top:10px;text-align:center;min-height:16px;}
+    .auth-msg.error{color:var(--danger);}
+    .auth-msg.ok{color:var(--success);}
+
+    /* ── ITEM DETAIL ── */
+    .item-hero{width:100%;aspect-ratio:4/3;background:var(--bg);display:flex;
+      align-items:center;justify-content:center;font-size:88px;overflow:hidden;}
+    .item-hero img{width:100%;height:100%;object-fit:cover;}
+    .detail-section{padding:16px;}
+    .detail-row{display:flex;justify-content:space-between;align-items:flex-start;
+      padding:10px 0;border-bottom:1px solid var(--border);}
+    .detail-row:last-child{border-bottom:none;}
+    .detail-key{font-size:13px;color:var(--text-muted);flex:1;}
+    .detail-val{font-size:14px;font-weight:500;text-align:right;flex:1.5;word-break:break-word;}
+
+    /* ── USAGE LOG ── */
+    .usage-dot{display:inline-block;width:10px;height:10px;border-radius:50%;
+      background:var(--primary);margin:2px;}
+    .usage-dot.empty{background:var(--border);}
+
+    /* ── FILTER BAR ── */
+    .filter-bar{display:flex;gap:6px;padding:10px 16px;overflow-x:auto;
+      background:var(--surface);-webkit-overflow-scrolling:touch;scrollbar-width:none;}
+    .filter-bar::-webkit-scrollbar{display:none;}
+
+    /* ── CHECKLIST ── */
+    .ck-item{display:flex;align-items:flex-start;gap:10px;padding:11px 0;
+      border-bottom:1px solid var(--border);}
+    .ck-item:last-child{border-bottom:none;}
+    .ck-box{width:22px;height:22px;border:2px solid var(--border);border-radius:5px;
+      flex-shrink:0;cursor:pointer;background:var(--surface);display:flex;
+      align-items:center;justify-content:center;font-size:13px;margin-top:1px;transition:all 0.15s;}
+    .ck-box.checked{background:var(--primary);border-color:var(--primary);color:#fff;}
+    .ck-text{font-size:14px;line-height:1.5;flex:1;}
+
+    /* ── PROGRESS ── */
+    .progress-bar{height:6px;background:var(--border);border-radius:3px;overflow:hidden;}
+    .progress-fill{height:100%;background:var(--primary);border-radius:3px;transition:width 0.4s;}
+
+    .divider{height:1px;background:var(--border);margin:14px 0;}
+    .gap-8{display:flex;flex-direction:column;gap:8px;}
+    .gap-10{display:flex;flex-direction:column;gap:10px;}
+
+    .info-box{background:var(--primary-light);border-radius:var(--r);padding:12px 14px;
+      font-size:13px;color:var(--primary);line-height:1.6;}
+
+    /* ── EXPIRY COLORS ── */
+    .expiry-ok{color:var(--success);}
+    .expiry-soon{color:var(--warning);}
+    .expiry-expired{color:var(--danger);}
+
+    @media(min-width:480px){
+      .page-content,.tab-bar,.filter-bar{max-width:480px;margin-left:auto;margin-right:auto;}
+      .page-header{max-width:480px;margin:0 auto;left:0;right:0;}
+    }
+  </style>
+</head>
+<body>
+
+<!-- AUTH GATE -->
+<div id="auth-gate">
+  <div class="auth-box">
+    <h1 id="auth-title">Đăng nhập</h1>
+    <div class="form-group">
+      <label class="form-label">Email</label>
+      <input class="form-input" id="auth-email" type="email" placeholder="ban@email.com">
+    </div>
+    <div class="form-group">
+      <label class="form-label">Mật khẩu</label>
+      <input class="form-input" id="auth-password" type="password" placeholder="••••••••">
+    </div>
+    <button class="btn btn-primary btn-full" id="auth-submit-btn" onclick="submitAuth()">Đăng nhập</button>
+    <button class="auth-toggle" id="auth-toggle-btn" onclick="toggleAuthMode()">Chưa có tài khoản? Đăng ký</button>
+    <button class="auth-toggle" onclick="exportBackup()" style="color:var(--text-muted)">⬇ Tải backup dữ liệu cũ trên máy này (.json)</button>
+    <div class="auth-msg" id="auth-msg"></div>
+  </div>
+</div>
+
+<!-- ONBOARDING -->
+<div id="page-onboarding" style="display:none">
+  <div class="ob-logo"><img src="https://i.postimg.cc/yYGKB1pt/hinhnen.png" alt="Clothes 99"></div>
+  <h1 class="ob-title">Clothes 99</h1>
+  <p class="ob-sub">Nhìn thấy rõ những gì bạn đang sở hữu.<br>Mua ít hơn, dùng nhiều hơn, sống gọn hơn.</p>
+  <ul class="ob-feats">
+    <li><span class="fi">📦</span><span><strong>Tủ đồ số</strong> – quần áo, mỹ phẩm, giày, túi xách trong một chỗ</span></li>
+    <li><span class="fi">📊</span><span><strong>Cost-per-wear</strong> – biết món nào xứng đáng tiền bạn bỏ ra</span></li>
+    <li><span class="fi">🛒</span><span><strong>Kiểm tra trước khi mua</strong> – tránh mua trùng và mua thừa</span></li>
+    <li><span class="fi">🌿</span><span><strong>Dọn đồ thông minh</strong> – giữ/bán/tặng/tái chế dễ dàng</span></li>
+  </ul>
+  <button class="btn btn-primary btn-full" style="max-width:320px" onclick="finishOnboarding()">Bắt đầu ngay →</button>
+</div>
+
+<!-- MAIN APP -->
+<div id="app" style="display:none">
+
+  <!-- ══ DASHBOARD ══ -->
+  <div id="page-dashboard" class="page">
+    <div class="page-header">
+      <h1>Tổng quan</h1>
+      <button class="btn btn-sm btn-secondary" onclick="openModal('modal-log-usage')">+ Ghi hôm nay</button>
+      <button class="btn btn-sm btn-ghost" onclick="logoutUser()">Đăng xuất</button>
+    </div>
+    <div class="page-content" id="dashboard-content"></div>
+  </div>
+
+  <!-- ══ INVENTORY ══ -->
+  <div id="page-inventory" class="page">
+    <div class="page-header">
+      <h1>Tủ đồ</h1>
+      <button class="btn btn-sm btn-secondary" onclick="navigate('add')">+ Thêm</button>
+    </div>
+    <div class="tab-bar" id="inv-tabs"></div>
+    <div class="filter-bar" id="inv-filters"></div>
+    <div class="page-content" id="inventory-content"></div>
+  </div>
+
+  <!-- ══ ADD / EDIT ITEM ══ -->
+  <div id="page-add" class="page">
+    <div class="page-header">
+      <button class="back-btn" onclick="navigate('inventory')">←</button>
+      <h1 id="add-title">Thêm đồ mới</h1>
+    </div>
+    <div class="page-content" id="add-content"></div>
+  </div>
+
+  <!-- ══ ITEM DETAIL ══ -->
+  <div id="page-detail" class="page">
+    <div class="page-header">
+      <button class="back-btn" onclick="navigate('inventory')">←</button>
+      <h1 id="detail-title">Chi tiết</h1>
+      <button class="btn btn-sm btn-ghost" id="detail-edit-btn">Sửa</button>
+    </div>
+    <div id="detail-content"></div>
+  </div>
+
+  <!-- ══ PRE-PURCHASE CHECK ══ -->
+  <div id="page-check" class="page">
+    <div class="page-header">
+      <h1>🛒 Kiểm tra trước khi mua</h1>
+    </div>
+    <div class="page-content" id="check-content"></div>
+  </div>
+
+  <!-- ══ DECLUTTER ══ -->
+  <div id="page-declutter" class="page">
+    <div class="page-header">
+      <h1>🌿 Dọn đồ</h1>
+    </div>
+    <div class="tab-bar" id="declutter-tabs"></div>
+    <div class="page-content" id="declutter-content"></div>
+  </div>
+
+</div><!-- /#app -->
+
+<!-- BOTTOM NAV -->
+<nav id="bottom-nav" style="display:none">
+  <button class="nav-item active" data-page="dashboard" onclick="navigate('dashboard')">
+    <span class="nav-icon"><svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 17 9 11 13 15 21 7"></polyline><polyline points="14 7 21 7 21 14"></polyline></svg></span><span>Tổng quan</span>
+  </button>
+  <button class="nav-item" data-page="inventory" onclick="navigate('inventory')">
+    <span class="nav-icon">👗</span><span>Tủ đồ</span>
+  </button>
+  <div class="nav-fab">
+    <button class="nav-fab-btn" onclick="navigate('add')" title="Thêm đồ mới">+</button>
+  </div>
+  <button class="nav-item" data-page="check" onclick="navigate('check')">
+    <span class="nav-icon">🔍</span><span>Mua gì?</span>
+  </button>
+  <button class="nav-item" data-page="declutter" onclick="navigate('declutter')">
+    <span class="nav-icon">🌿</span><span>Dọn đồ</span>
+  </button>
+</nav>
+
+<!-- MODALS -->
+<div class="modal-overlay" id="modal-log-usage" onclick="closeModalOutside(event,'modal-log-usage')">
+  <div class="modal-sheet">
+    <div class="modal-handle"></div>
+    <div class="modal-title">Ghi hôm nay đã mặc/dùng gì</div>
+    <div class="modal-body" id="modal-log-content"></div>
+  </div>
+</div>
+
+<div class="modal-overlay" id="modal-declutter-action" onclick="closeModalOutside(event,'modal-declutter-action')">
+  <div class="modal-sheet">
+    <div class="modal-handle"></div>
+    <div class="modal-title" id="modal-declutter-title">Xử lý món đồ này</div>
+    <div class="modal-body" id="modal-declutter-body"></div>
+  </div>
+</div>
+
+<!-- TOAST -->
+<div id="toast"></div>
+
+<script>
+// ═══════════════════════════════════════════
+//  SUPABASE CONFIG + AUTH + SYNC
+// ═══════════════════════════════════════════
+
+// Lấy 2 giá trị này ở Supabase Dashboard > Settings > API
+const SUPABASE_URL = 'https://otjbxbysblbkjtgbgsdj.supabase.co';
+const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im90amJ4YnlzYmxia2p0Z2Jnc2RqIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODI2MTU4MzAsImV4cCI6MjA5ODE5MTgzMH0.trXVtdO2-hHGA22PP54CkW6IsJoYdJAP6dWxV3OQgwo';
+
+const sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+let currentUser = null;
+let isSignUpMode = false;
+
+function toggleAuthMode() {
+  isSignUpMode = !isSignUpMode;
+  document.getElementById('auth-title').textContent = isSignUpMode ? 'Đăng ký' : 'Đăng nhập';
+  document.getElementById('auth-submit-btn').textContent = isSignUpMode ? 'Đăng ký' : 'Đăng nhập';
+  document.getElementById('auth-toggle-btn').textContent = isSignUpMode ? 'Đã có tài khoản? Đăng nhập' : 'Chưa có tài khoản? Đăng ký';
+  const msgEl = document.getElementById('auth-msg');
+  msgEl.className = 'auth-msg';
+  msgEl.textContent = '';
+}
+
+async function submitAuth() {
+  const email = document.getElementById('auth-email').value.trim();
+  const password = document.getElementById('auth-password').value;
+  const msgEl = document.getElementById('auth-msg');
+  msgEl.className = 'auth-msg';
+  msgEl.textContent = '';
+
+  if (!email || !password) {
+    msgEl.className = 'auth-msg error';
+    msgEl.textContent = 'Nhập đầy đủ email và mật khẩu.';
+    return;
+  }
+
+  const { error } = isSignUpMode
+    ? await sb.auth.signUp({ email, password })
+    : await sb.auth.signInWithPassword({ email, password });
+
+  if (error) {
+    msgEl.className = 'auth-msg error';
+    msgEl.textContent = error.message;
+    return;
+  }
+
+  if (isSignUpMode) {
+    msgEl.className = 'auth-msg ok';
+    msgEl.textContent = 'Đăng ký thành công! Nếu bật xác nhận email, kiểm tra hộp thư trước khi đăng nhập.';
+  }
+}
+
+async function logoutUser() {
+  await sb.auth.signOut();
+}
+
+// Kéo dữ liệu từ cloud về (nếu có), gộp vào DB cục bộ rồi khởi động app
+async function startApp() {
+  const { data: { user } } = await sb.auth.getUser();
+  if (!user) return;
+  currentUser = user;
+
+  const { data, error } = await sb
+    .from('app_data')
+    .select('data')
+    .eq('user_id', user.id)
+    .maybeSingle();
+
+  if (!error && data && data.data && Object.keys(data.data).length) {
+    DB = data.data;
+  } else {
+    // Tài khoản mới chưa có data trên cloud: đẩy ngay data đang có trên trình
+    // duyệt này (nếu có) lên cloud, để không phải chờ tới lần lưu tiếp theo.
+    pushToCloud();
+  }
+
+  document.getElementById('auth-gate').style.display = 'none';
+  init();
+}
+
+function showAuthGate() {
+  document.getElementById('app').style.display = 'none';
+  document.getElementById('bottom-nav').style.display = 'none';
+  document.getElementById('page-onboarding').style.display = 'none';
+  document.getElementById('auth-gate').style.display = 'flex';
+}
+
+// Xuất dữ liệu cũ (localStorage) ra file .json để backup - dùng được ngay
+// trên điện thoại (không cần mở console/dev tools).
+function exportBackup() {
+  const raw = localStorage.getItem('clothes99_v1');
+  if (!raw) { alert('Không tìm thấy dữ liệu cũ trên trình duyệt này.'); return; }
+  const blob = new Blob([raw], { type: 'application/json' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = 'clothes99-backup-' + new Date().toISOString().slice(0,10) + '.json';
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+}
+
+// Đẩy DB lên cloud, debounce để không gọi quá nhiều lần khi user thao tác liên tục
+let _pushTimer = null;
+function pushToCloud() {
+  if (!currentUser) return;
+  clearTimeout(_pushTimer);
+  _pushTimer = setTimeout(async () => {
+    await sb.from('app_data').upsert({
+      user_id: currentUser.id,
+      data: DB,
+      updated_at: new Date().toISOString()
+    });
+  }, 800);
+}
+
+// ═══════════════════════════════════════════
+//  DATA LAYER
+// ═══════════════════════════════════════════
+
+const STORAGE_KEY = 'clothes99_v1';
+
+function loadDB() {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY);
+    if (raw) return JSON.parse(raw);
+  } catch(e){}
+  return { items:[], usageLogs:[], declutterActions:[], onboardingDone:false, itemCounters:{CLOTHING:0,FOOTWEAR:0,COSMETIC:0,BAG:0}, settings:{monthlyBudget:0} };
+}
+
+function saveDB() {
+  try { localStorage.setItem(STORAGE_KEY, JSON.stringify(DB)); } catch(e){}
+  pushToCloud();
+}
+
+let DB = loadDB();
+if (!DB.itemCounters) DB.itemCounters = {CLOTHING:0,FOOTWEAR:0,COSMETIC:0,BAG:0};
+if (!DB.settings) DB.settings = {monthlyBudget:0};
+
+let _pendingImage = null;
+
+function handleImageUpload(e) {
+  const file = e.target.files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = function(ev) {
+    const img = new Image();
+    img.onload = function() {
+      const canvas = document.createElement('canvas');
+      const MAX = 600;
+      let w = img.width, h = img.height;
+      if (w > h && w > MAX) { h = Math.round(h*MAX/w); w = MAX; }
+      else if (h > MAX) { w = Math.round(w*MAX/h); h = MAX; }
+      canvas.width = w; canvas.height = h;
+      canvas.getContext('2d').drawImage(img,0,0,w,h);
+      _pendingImage = canvas.toDataURL('image/jpeg', 0.75);
+      const preview = document.getElementById('img-preview');
+      if (preview) { preview.src = _pendingImage; preview.style.display = 'block'; }
+    };
+    img.src = ev.target.result;
+  };
+  reader.readAsDataURL(file);
+}
+
+// Seed demo data if empty
+function seedDemoData() {
+  if (DB.onboardingDone || DB.items.length > 0) return;
+  const now = new Date();
+  const daysAgo = d => new Date(now - d*86400000).toISOString();
+
+  DB.items = [
+    {
+      id:'demo1', itemCode:'C01', category:'CLOTHING', status:'ACTIVE',
+      name:'Áo sơ mi trắng Oxford', brand:'Uniqlo', price:490000,
+      purchaseDate: daysAgo(180), clothingType:'top', color:'Trắng',
+      size:'M', season:['spring','fall'], occasion:'work',
+      identityTags:['work','formal'], tags:[], notes:'Mặc đi phỏng vấn lần đầu',
+      imageUrls:[], createdAt: daysAgo(180)
+    },
+    {
+      id:'demo2', itemCode:'C02', category:'CLOTHING', status:'ACTIVE',
+      name:'Quần jean slim đen', brand:'H&M', price:350000,
+      purchaseDate: daysAgo(240), clothingType:'bottom', color:'Đen',
+      size:'28', season:['spring','fall','winter'], occasion:'casual',
+      identityTags:['casual','date'], tags:[], notes:'',
+      imageUrls:[], createdAt: daysAgo(240)
+    },
+    {
+      id:'demo3', itemCode:'C03', category:'CLOTHING', status:'ACTIVE',
+      name:'Váy hoa mùa hè', brand:'Zara', price:650000,
+      purchaseDate: daysAgo(120), clothingType:'dress', color:'Hồng',
+      size:'S', season:['summer'], occasion:'casual',
+      identityTags:['date','casual'], tags:['floral'], notes:'',
+      imageUrls:[], createdAt: daysAgo(120)
+    },
+    {
+      id:'demo4', itemCode:'C04', category:'CLOTHING', status:'ACTIVE',
+      name:'Áo hoodie xám', brand:'Pull&Bear', price:420000,
+      purchaseDate: daysAgo(95), clothingType:'top', color:'Xám',
+      size:'M', season:['fall','winter'], occasion:'casual',
+      identityTags:['casual','gym'], tags:[], notes:'',
+      imageUrls:[], createdAt: daysAgo(95)
+    },
+    {
+      id:'demo5', itemCode:'S01', category:'COSMETIC', status:'ACTIVE',
+      name:'Kem chống nắng SPF50', brand:'Anessa', price:450000,
+      purchaseDate: daysAgo(60), cosmeticStep:'sunscreen',
+      skinType:'combination', openedAt: daysAgo(55), shelfLifeDays:365,
+      identityTags:[], tags:['skincare'], notes:'Dùng hàng ngày',
+      imageUrls:[], createdAt: daysAgo(60)
+    },
+    {
+      id:'demo6', itemCode:'S02', category:'COSMETIC', status:'ACTIVE',
+      name:'Serum Vitamin C', brand:'Some By Mi', price:380000,
+      purchaseDate: daysAgo(90), cosmeticStep:'serum',
+      skinType:'combination', openedAt: daysAgo(88), shelfLifeDays:180,
+      identityTags:[], tags:['skincare','vitamin-c'], notes:'',
+      imageUrls:[], createdAt: daysAgo(90)
+    },
+    {
+      id:'demo7', itemCode:'S03', category:'COSMETIC', status:'ACTIVE',
+      name:'Son kem lì #19', brand:'3CE', price:280000,
+      purchaseDate: daysAgo(200), cosmeticStep:'makeup',
+      skinType:null, openedAt: daysAgo(195), shelfLifeDays:730,
+      identityTags:[], tags:['makeup','lip'], notes:'Màu rất ít dùng',
+      imageUrls:[], createdAt: daysAgo(200)
+    },
+    {
+      id:'demo8', itemCode:'G01', category:'FOOTWEAR', status:'ACTIVE',
+      name:'Giày sneaker trắng', brand:'Vans', price:1200000,
+      purchaseDate: daysAgo(300), footwearType:'sneaker', comfortRating:5,
+      usageEnvironment:['office','casual'], color:'Trắng',
+      identityTags:['casual','work'], tags:[], notes:'Đôi yêu thích nhất',
+      imageUrls:[], createdAt: daysAgo(300)
+    },
+    {
+      id:'demo9', itemCode:'G02', category:'FOOTWEAR', status:'ACTIVE',
+      name:'Cao gót đen 7cm', brand:'Aldo', price:890000,
+      purchaseDate: daysAgo(400), footwearType:'heel', comfortRating:2,
+      usageEnvironment:['formal','office'], color:'Đen',
+      identityTags:['formal','date'], tags:[], notes:'Đau chân sau 2h',
+      imageUrls:[], createdAt: daysAgo(400)
+    },
+    {
+      id:'demo10', itemCode:'B01', category:'BAG', status:'ACTIVE',
+      name:'Túi tote da nâu', brand:'Charles & Keith', price:990000,
+      purchaseDate: daysAgo(150), bagType:'tote', color:'Nâu', material:'da',
+      occasion:'work', identityTags:['work','casual'], tags:[], notes:'Đựng vừa laptop',
+      imageUrls:[], createdAt: daysAgo(150)
+    }
+  ];
+
+  // Usage logs
+  DB.usageLogs = [
+    {id:'ul1', itemIds:['demo1','demo2','demo8'], usedAt: daysAgo(1), notes:'Đi làm', createdAt: daysAgo(1)},
+    {id:'ul2', itemIds:['demo1','demo2'], usedAt: daysAgo(3), notes:'', createdAt: daysAgo(3)},
+    {id:'ul3', itemIds:['demo3','demo8'], usedAt: daysAgo(7), notes:'Đi chơi cuối tuần', createdAt: daysAgo(7)},
+    {id:'ul4', itemIds:['demo4','demo2'], usedAt: daysAgo(10), notes:'', createdAt: daysAgo(10)},
+    {id:'ul5', itemIds:['demo1','demo2','demo8'], usedAt: daysAgo(14), notes:'', createdAt: daysAgo(14)},
+    {id:'ul6', itemIds:['demo1','demo2'], usedAt: daysAgo(20), notes:'', createdAt: daysAgo(20)},
+    {id:'ul7', itemIds:['demo8','demo4'], usedAt: daysAgo(25), notes:'', createdAt: daysAgo(25)},
+    // cosmetic usage
+    {id:'ul8', itemIds:['demo5','demo6'], usedAt: daysAgo(1), notes:'Skincare sáng', createdAt: daysAgo(1)},
+    {id:'ul9', itemIds:['demo5'], usedAt: daysAgo(2), notes:'', createdAt: daysAgo(2)},
+    {id:'ul10', itemIds:['demo5','demo6'], usedAt: daysAgo(3), notes:'', createdAt: daysAgo(3)},
+  ];
+
+  DB.itemCounters = {CLOTHING:4, FOOTWEAR:2, COSMETIC:3, BAG:1};
+  DB.declutterActions = [];
+  saveDB();
+}
+
+// ── CRUD helpers ──
+
+function genId() {
+  return Date.now().toString(36) + Math.random().toString(36).slice(2,6);
+}
+
+function getItems(filter={}) {
+  let items = DB.items.filter(i => i.status !== 'DECLUTTERED' || filter.includeDecluttered);
+  if (filter.category) items = items.filter(i => i.category === filter.category);
+  if (filter.tag) items = items.filter(i => (i.identityTags||[]).includes(filter.tag) || (i.tags||[]).includes(filter.tag));
+  if (filter.status) items = items.filter(i => i.status === filter.status);
+  return items;
+}
+
+function getItem(id) { return DB.items.find(i => i.id === id); }
+
+function saveItem(item) {
+  const idx = DB.items.findIndex(i => i.id === item.id);
+  if (idx >= 0) { DB.items[idx] = {...DB.items[idx], ...item, updatedAt: new Date().toISOString()}; }
+  else {
+    if (!item.itemCode) item.itemCode = genItemCode(item.category);
+    DB.items.push({...item, id: genId(), createdAt: new Date().toISOString()});
+  }
+  saveDB();
+}
+
+function deleteItem(id) {
+  DB.items = DB.items.filter(i => i.id !== id);
+  DB.usageLogs = DB.usageLogs.map(l => ({...l, itemIds: l.itemIds.filter(x => x !== id)}));
+  saveDB();
+}
+
+// ── Usage analytics ──
+
+function getUsageLogs(itemId) {
+  if (itemId) return DB.usageLogs.filter(l => l.itemIds.includes(itemId));
+  return DB.usageLogs;
+}
+
+function getUsageCount(itemId) {
+  return DB.usageLogs.filter(l => l.itemIds.includes(itemId)).length;
+}
+
+function getLastUsed(itemId) {
+  const logs = getUsageLogs(itemId);
+  if (!logs.length) return null;
+  return logs.map(l => l.usedAt).sort().reverse()[0];
+}
+
+function getDaysSinceLastUsed(itemId) {
+  const last = getLastUsed(itemId);
+  if (!last) return null;
+  return Math.floor((Date.now() - new Date(last)) / 86400000);
+}
+
+function getCPW(item) {
+  if (!item.price) return null;
+  const count = getUsageCount(item.id);
+  if (count === 0) return item.price;
+  return Math.round(item.price / count);
+}
+
+function getCPWClass(cpw) {
+  if (cpw === null) return '';
+  if (cpw < 10000) return 'cpw-good';
+  if (cpw < 50000) return 'cpw-ok';
+  return 'cpw-bad';
+}
+
+function formatCurrency(n) {
+  if (!n) return '–';
+  return n.toLocaleString('vi-VN') + 'đ';
+}
+
+// ── Expiry for cosmetics ──
+
+function getExpiryDate(item) {
+  if (item.category !== 'COSMETIC') return null;
+  if (item.expiryDate) return new Date(item.expiryDate);
+  if (item.openedAt && item.shelfLifeDays) {
+    return new Date(new Date(item.openedAt).getTime() + item.shelfLifeDays * 86400000);
+  }
+  return null;
+}
+
+function getExpiryStatus(item) {
+  const exp = getExpiryDate(item);
+  if (!exp) return null;
+  const daysLeft = Math.ceil((exp - Date.now()) / 86400000);
+  if (daysLeft < 0) return { label: 'Đã hết hạn', cls: 'expiry-expired', days: daysLeft, urgent: true };
+  if (daysLeft <= 30) return { label: `Còn ${daysLeft} ngày`, cls: 'expiry-soon', days: daysLeft, urgent: true };
+  if (daysLeft <= 90) return { label: `Còn ${daysLeft} ngày`, cls: 'expiry-soon', days: daysLeft, urgent: false };
+  return { label: `Còn ${daysLeft} ngày`, cls: 'expiry-ok', days: daysLeft, urgent: false };
+}
+
+// ── Sleeping items ──
+
+function isSleeping(item) {
+  if (item.category === 'COSMETIC') return false;
+  const days = getDaysSinceLastUsed(item.id);
+  const count = getUsageCount(item.id);
+  const agedays = item.purchaseDate ? Math.floor((Date.now()-new Date(item.purchaseDate))/86400000) : 0;
+  if (days === null && agedays > 60) return true; // never used after 60 days
+  if (days !== null && days > 90) return true;
+  if (count <= 1 && agedays > 90) return true;
+  return false;
+}
+
+// ── Declutter recommendations ──
+
+function getDeclutterRecommendations() {
+  const activeItems = getItems({}).filter(i => i.status === 'ACTIVE');
+  return activeItems.filter(item => {
+    if (item.category === 'COSMETIC') {
+      const exp = getExpiryStatus(item);
+      if (exp && exp.urgent) return true;
+      const count = getUsageCount(item.id);
+      const days = getDaysSinceLastUsed(item.id);
+      if (count === 0 && item.openedAt) return true;
+      if (days !== null && days > 120) return true;
+    } else {
+      if (isSleeping(item)) return true;
+      const cpw = getCPW(item);
+      if (cpw && cpw > 200000) return true;
+    }
+    return false;
+  }).sort((a,b) => {
+    // expired cosmetics first
+    if (a.category === 'COSMETIC' && b.category !== 'COSMETIC') return -1;
+    if (b.category === 'COSMETIC' && a.category !== 'COSMETIC') return 1;
+    return 0;
+  });
+}
+
+// ── Similar items matching ──
+
+function getSimilarItems(category, attributes) {
+  const items = getItems({category}).filter(i => i.status === 'ACTIVE');
+  return items.filter(item => {
+    if (category === 'CLOTHING') {
+      const typeMatch = attributes.clothingType && item.clothingType === attributes.clothingType ? 1 : 0;
+      const colorMatch = attributes.color && item.color &&
+        item.color.toLowerCase().includes(attributes.color.toLowerCase()) ? 1 : 0;
+      const occasionMatch = attributes.occasion && item.occasion === attributes.occasion ? 1 : 0;
+      return (typeMatch + colorMatch + occasionMatch) >= 2;
+    }
+    if (category === 'COSMETIC') {
+      return attributes.cosmeticStep && item.cosmeticStep === attributes.cosmeticStep;
+    }
+    if (category === 'FOOTWEAR') {
+      return attributes.footwearType && item.footwearType === attributes.footwearType;
+    }
+    if (category === 'BAG') {
+      const typeMatch = attributes.bagType && item.bagType === attributes.bagType ? 1 : 0;
+      const colorMatch = attributes.color && item.color &&
+        item.color.toLowerCase().includes(attributes.color.toLowerCase()) ? 1 : 0;
+      return (typeMatch + colorMatch) >= 1;
+    }
+    return false;
+  });
+}
+
+// ── Purchase recommendation engine ──
+
+function getPurchaseRecommendation(category, attributes, price) {
+  const similar = getSimilarItems(category, attributes);
+  if (similar.length === 0) {
+    return { rec: 'BUY', label: '✅ Mua được', cls: 'buy',
+      note: 'Bạn chưa có món nào tương tự trong tủ. Đây có vẻ là gap thực sự.' };
+  }
+
+  const lowUsage = similar.filter(i => getUsageCount(i.id) < 3);
+  const sleeping = similar.filter(i => isSleeping(i));
+
+  if (sleeping.length >= 2 || (similar.length >= 3 && lowUsage.length >= 2)) {
+    return { rec: 'SKIP', label: '⛔ Chưa cần mua', cls: 'skip',
+      note: `Bạn có ${similar.length} món tương tự, ${sleeping.length || lowUsage.length} món hầu như không dùng. Mua thêm có thể tạo thêm clutter.`,
+      similar };
+  }
+
+  if (similar.length >= 1 && lowUsage.length >= 1) {
+    return { rec: 'WAIT', label: '⏳ Chờ thêm', cls: 'wait',
+      note: `Bạn có ${similar.length} món tương tự, nhưng có món chưa được tận dụng hết. Thử mix lại với đồ đang có trước?`,
+      similar };
+  }
+
+  return { rec: 'BUY', label: '✅ Mua được', cls: 'buy',
+    note: `Bạn có ${similar.length} món tương tự nhưng tất cả đều được dùng tốt. Nếu thực sự cần thêm thì OK.`,
+    similar };
+}
+
+// ── Dashboard stats ──
+
+function getStats() {
+  const all = getItems({});
+  const clothing = all.filter(i => i.category === 'CLOTHING');
+  const cosmetic = all.filter(i => i.category === 'COSMETIC');
+  const footwear = all.filter(i => i.category === 'FOOTWEAR');
+  const bag = all.filter(i => i.category === 'BAG');
+  const sleeping = all.filter(i => isSleeping(i));
+  const nearExpiry = cosmetic.filter(i => { const e = getExpiryStatus(i); return e && e.urgent; });
+  const totalValue = all.reduce((s,i) => s + (i.price||0), 0);
+  const decluttered = DB.items.filter(i => i.status === 'DECLUTTERED').length;
+  return { all, clothing, cosmetic, footwear, bag, sleeping, nearExpiry, totalValue, decluttered };
+}
+
+function getMonthlySpending() {
+  const now = new Date();
+  const y = now.getFullYear(), m = now.getMonth();
+  return DB.items
+    .filter(i => { if (!i.purchaseDate || !i.price) return false; const d = new Date(i.purchaseDate); return d.getFullYear()===y && d.getMonth()===m; })
+    .reduce((s,i) => s + i.price, 0);
+}
+
+// Lịch sử chi tiêu N tháng gần nhất (tính theo purchaseDate + price của item),
+// dùng để vẽ mini bar-chart trên Dashboard.
+function getSpendingByMonth(monthsBack = 6) {
+  const now = new Date();
+  const buckets = [];
+  for (let i = monthsBack - 1; i >= 0; i--) {
+    const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+    buckets.push({ year: d.getFullYear(), month: d.getMonth(), label: d.toLocaleDateString('vi-VN', {month:'short'}), total: 0 });
+  }
+  DB.items.forEach(item => {
+    if (!item.purchaseDate || !item.price) return;
+    const d = new Date(item.purchaseDate);
+    const b = buckets.find(x => x.year === d.getFullYear() && x.month === d.getMonth());
+    if (b) b.total += item.price;
+  });
+  return buckets;
+}
+
+function editBudget() {
+  const cur = DB.settings.monthlyBudget || 0;
+  const val = prompt('Nhập ngân sách tháng (VND):', cur);
+  if (val === null) return;
+  DB.settings.monthlyBudget = parseInt(val.replace(/[^0-9]/g,'')) || 0;
+  saveDB();
+  renderDashboard();
+}
+
+// ── Log usage ──
+
+function logUsage(itemIds, usedAt, notes) {
+  DB.usageLogs.push({
+    id: genId(),
+    itemIds,
+    usedAt: usedAt || new Date().toISOString(),
+    notes: notes || '',
+    createdAt: new Date().toISOString()
+  });
+  saveDB();
+  showToast('✓ Đã ghi lại!');
+}
+
+function saveDeclutter(itemId, action, notes) {
+  DB.declutterActions.push({
+    id: genId(), itemId, action, notes: notes||'', createdAt: new Date().toISOString()
+  });
+  const item = getItem(itemId);
+  if (item) {
+    item.status = 'DECLUTTERED';
+    saveItem(item);
+  }
+  saveDB();
+}
+
+function genItemCode(category) {
+  if (!DB.itemCounters) DB.itemCounters = {CLOTHING:0,FOOTWEAR:0,COSMETIC:0,BAG:0};
+  const prefix = {CLOTHING:'C',FOOTWEAR:'G',COSMETIC:'S',BAG:'B'}[category] || 'X';
+  DB.itemCounters[category] = (DB.itemCounters[category]||0) + 1;
+  const n = String(DB.itemCounters[category]).padStart(2,'0');
+  return prefix + n;
+}
+
+// ═══════════════════════════════════════════
+//  ROUTER
+// ═══════════════════════════════════════════
+
+let currentPage = 'dashboard';
+let currentParams = {};
+let invTab = 'ALL';
+let declutterTab = 'ALL';
+let invFilter = '';
+
+function navigate(page, params={}) {
+  currentPage = page;
+  currentParams = params;
+  document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+  document.querySelectorAll('.nav-item').forEach(b => {
+    b.classList.toggle('active', b.dataset.page === page);
+  });
+  const target = document.getElementById('page-' + page);
+  if (target) target.classList.add('active');
+  renderPage(page, params);
+  window.scrollTo(0,0);
+}
+
+// Bấm vào ô thống kê category trên Dashboard -> nhảy sang tab Tủ đồ đã lọc đúng category
+function goToCategory(cat) {
+  invTab = cat;
+  invFilter = '';
+  navigate('inventory');
+}
+
+function renderPage(page, params) {
+  if (page === 'dashboard') renderDashboard();
+  else if (page === 'inventory') renderInventory();
+  else if (page === 'add') renderAddItem(params.editId || null);
+  else if (page === 'detail') renderDetail(params.id);
+  else if (page === 'check') renderCheck();
+  else if (page === 'declutter') renderDeclutter();
+}
+
+// ═══════════════════════════════════════════
+//  HELPERS
+// ═══════════════════════════════════════════
+
+const CAT_ICONS = { CLOTHING:'👗', COSMETIC:'💄', FOOTWEAR:'👟', BAG:'👜' };
+const CAT_LABELS = { CLOTHING:'Quần áo', COSMETIC:'Mỹ phẩm', FOOTWEAR:'Giày dép', BAG:'Túi xách' };
+const CAT_BADGE = { CLOTHING:'badge-clothing', COSMETIC:'badge-cosmetic', FOOTWEAR:'badge-footwear', BAG:'badge-bag' };
+
+// Ảnh thật của item luôn được ưu tiên hiện thay vì icon mặc định của category.
+function thumbInner(item) {
+  return item.imageUrls && item.imageUrls[0]
+    ? `<img src="${escHtml(item.imageUrls[0])}" alt="${escHtml(item.name||'')}">`
+    : (CAT_ICONS[item.category] || '📦');
+}
+
+function fmt(val, fallback='–') { return val || fallback; }
+function fmtDate(d) {
+  if (!d) return '–';
+  return new Date(d).toLocaleDateString('vi-VN',{day:'2-digit',month:'2-digit',year:'numeric'});
+}
+function fmtDaysAgo(d) {
+  if (!d) return 'Chưa dùng';
+  const days = Math.floor((Date.now()-new Date(d))/86400000);
+  if (days === 0) return 'Hôm nay';
+  if (days === 1) return 'Hôm qua';
+  return `${days} ngày trước`;
+}
+
+function escHtml(s) {
+  return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+function showToast(msg, duration=2200) {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.classList.add('show');
+  clearTimeout(window._toastTimer);
+  window._toastTimer = setTimeout(() => t.classList.remove('show'), duration);
+}
+
+function openModal(id) {
+  const m = document.getElementById(id);
+  if (!m) return;
+  if (id === 'modal-log-usage') renderLogUsageModal();
+  m.classList.add('open');
+}
+function closeModal(id) {
+  const m = document.getElementById(id);
+  if (m) m.classList.remove('open');
+}
+function closeModalOutside(e, id) {
+  if (e.target === e.currentTarget) closeModal(id);
+}
+
+// ═══════════════════════════════════════════
+//  DASHBOARD
+// ═══════════════════════════════════════════
+
+function renderDashboard() {
+  const s = getStats();
+  const recs = getDeclutterRecommendations().slice(0,3);
+
+  let html = `
+  <div class="stat-grid" style="margin-bottom:16px">
+    <div class="stat-card clickable" onclick="goToCategory('CLOTHING')">
+      <div class="stat-icon-circle" style="background:#EEF2FF">👗</div>
+      <div class="stat-value">${s.clothing.length}</div>
+      <div class="stat-label">Quần áo</div>
+    </div>
+    <div class="stat-card clickable" onclick="goToCategory('COSMETIC')">
+      <div class="stat-icon-circle" style="background:#FDF2F8">💄</div>
+      <div class="stat-value">${s.cosmetic.length}</div>
+      <div class="stat-label">Mỹ phẩm</div>
+    </div>
+    <div class="stat-card clickable" onclick="goToCategory('FOOTWEAR')">
+      <div class="stat-icon-circle" style="background:#F3E8FF">👟</div>
+      <div class="stat-value">${s.footwear.length}</div>
+      <div class="stat-label">Giày dép</div>
+    </div>
+    <div class="stat-card clickable" onclick="goToCategory('BAG')">
+      <div class="stat-icon-circle" style="background:#ECFEFF">👜</div>
+      <div class="stat-value">${s.bag.length}</div>
+      <div class="stat-label">Túi xách</div>
+    </div>
+    <div class="stat-card clickable" onclick="navigate('declutter')">
+      <div class="stat-icon-circle" style="background:var(--warning-light)">😴</div>
+      <div class="stat-value" style="color:var(--warning)">${s.sleeping.length}</div>
+      <div class="stat-label">Đồ ít dùng</div>
+    </div>
+  </div>`;
+
+  const spent = getMonthlySpending();
+  const budget = DB.settings.monthlyBudget || 0;
+  const monthName = new Date().toLocaleDateString('vi-VN',{month:'long'});
+  if (budget > 0) {
+    const remaining = budget - spent;
+    const overBudget = remaining < 0;
+    const pct = Math.min(100, Math.round(spent/budget*100));
+    html += `<div class="stat-card" style="margin-bottom:16px">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
+        <div style="font-size:14px;font-weight:600">💰 Chi tiêu ${monthName}</div>
+        <button class="btn btn-sm btn-ghost" onclick="editBudget()">Sửa</button>
+      </div>
+      <div style="display:flex;justify-content:space-between;margin-bottom:6px">
+        <span style="font-size:18px;font-weight:800;color:${overBudget?'var(--danger)':'var(--text)'}">${formatCurrency(spent)}</span>
+        <span style="font-size:13px;color:var(--text-muted)">/ ${formatCurrency(budget)}</span>
+      </div>
+      <div class="progress-bar"><div class="progress-fill" style="width:${pct}%;background:${overBudget?'var(--danger)':'var(--primary)'}"></div></div>
+      <div style="font-size:12px;margin-top:6px;color:${overBudget?'var(--danger)':'var(--text-muted)'}">
+        ${overBudget?`Đã vượt ${formatCurrency(-remaining)}`:`Còn lại ${formatCurrency(remaining)}`}
+      </div>
+    </div>`;
+  } else {
+    html += `<div style="margin-bottom:14px">
+      <button class="btn btn-ghost btn-full" onclick="editBudget()">💰 Đặt ngân sách tháng</button>
+    </div>`;
+  }
+
+  if (s.nearExpiry.length > 0) {
+    html += `<div class="rec-box skip" style="margin-bottom:14px">
+      <div class="rec-title">⚠️ ${s.nearExpiry.length} mỹ phẩm sắp/đã hết hạn</div>
+      <div class="rec-note">${s.nearExpiry.map(i => escHtml(i.name)).join(', ')}</div>
+      <button class="btn btn-sm btn-danger" style="margin-top:8px" onclick="navigate('declutter')">Xem ngay →</button>
+    </div>`;
+  }
+
+  if (s.sleeping.length > 0) {
+    html += `<div class="rec-box wait" style="margin-bottom:14px">
+      <div class="rec-title">💤 ${s.sleeping.length} món đồ chưa được dùng lâu rồi</div>
+      <div class="rec-note">Trước khi mua thêm, hãy xem lại những gì đang bị bỏ quên.</div>
+      <button class="btn btn-sm btn-secondary" style="margin-top:8px" onclick="navigate('declutter')">Xem tủ đồ ngủ →</button>
+    </div>`;
+  }
+
+  // Đồ thường xuyên dùng
+  const freqItems = getItems({}).filter(i=>i.status==='ACTIVE' && getUsageCount(i.id)>0)
+    .map(i=>{
+      const count=getUsageCount(i.id);
+      const weeks=i.purchaseDate?Math.max(1,Math.floor((Date.now()-new Date(i.purchaseDate))/604800000)):1;
+      return {...i,_count:count,_avg:count/weeks};
+    })
+    .sort((a,b)=>b._count-a._count)
+    .slice(0,3);
+
+  if(freqItems.length>0){
+    html+=`<div class="section-hd"><span class="section-title">🔥 Đồ thường xuyên dùng</span></div>
+    <div class="gap-8" style="margin-bottom:18px">`;
+    freqItems.forEach(item=>{
+      const avgLabel=item._avg>=1?`${item._avg.toFixed(1)} lần/tuần`:'< 1 lần/tuần';
+      html+=`<div class="item-card" onclick="navigate('detail',{id:'${item.id}'})">
+      <div class="item-thumb">${thumbInner(item)}</div>
+      <div class="item-info">
+        <div class="item-name">${escHtml(item.name)}</div>
+        <div class="item-meta">${item._count} lần dùng · ${avgLabel}</div>
+      </div>
+    </div>`;
+    });
+    html+=`</div>`;
+  }
+
+  // Declutter suggestions preview
+  if (recs.length > 0) {
+    html += `<div class="section-hd">
+      <span class="section-title">🌿 Cần xem lại</span>
+      <button class="section-link" onclick="navigate('declutter')">Xem tất cả</button>
+    </div>
+    <div class="gap-8" style="margin-bottom:18px">`;
+    recs.forEach(item => {
+      const exp = getExpiryStatus(item);
+      const cpw = getCPW(item);
+      const days = getDaysSinceLastUsed(item.id);
+      let reason = '';
+      if (item.category === 'COSMETIC') {
+        const exp2 = getExpiryStatus(item);
+        if (exp2 && exp2.days < 0) reason = `<span class="badge badge-danger">Đã hết hạn</span>`;
+        else if (exp2 && exp2.urgent) reason = `<span class="badge badge-warning">⏰ ${exp2.label}</span>`;
+        else if (getUsageCount(item.id) === 0) reason = `<span class="badge badge-muted">Chưa dùng lần nào</span>`;
+        else reason = `<span class="badge badge-warning">Ít dùng</span>`;
+      } else {
+        const days2 = getDaysSinceLastUsed(item.id);
+        const cpw2 = getCPW(item);
+        if (!getLastUsed(item.id)) reason = `<span class="badge badge-muted">Chưa dùng lần nào</span>`;
+        else if (days2 && days2 > 90) reason = `<span class="badge badge-warning">Không dùng ${days2} ngày</span>`;
+        if (cpw2 && cpw2 > 200000) reason += `<span class="badge badge-danger" style="margin-left:4px">CPW cao (${formatCurrency(cpw2)})</span>`;
+      }
+      html += `<div class="item-card" onclick="navigate('detail',{id:'${item.id}'})">
+        <div class="item-thumb">${thumbInner(item)}</div>
+        <div class="item-info">
+          <div class="item-name">${escHtml(item.name)}</div>
+          <div class="item-meta">${fmt(item.brand)}</div>
+          <div class="item-badges">${reason}</div>
+        </div>
+      </div>`;
+    });
+    html += `</div>`;
+  }
+
+  // Quick actions — hàng icon tròn
+  html += `<div class="section-hd" style="margin-top:8px"><span class="section-title">Thao tác nhanh</span></div>
+  <div class="quick-actions">
+    <button class="quick-action" onclick="navigate('add')">
+      <div class="quick-action-icon" style="color:var(--primary)">➕</div>
+      <span class="quick-action-label">Thêm đồ</span>
+    </button>
+    <button class="quick-action" onclick="navigate('check')">
+      <div class="quick-action-icon" style="color:var(--text-muted)">🔍</div>
+      <span class="quick-action-label">Kiểm tra mua</span>
+    </button>
+    <button class="quick-action" onclick="navigate('declutter')">
+      <div class="quick-action-icon" style="color:var(--text-muted)">🌿</div>
+      <span class="quick-action-label">Dọn đồ</span>
+    </button>
+    <button class="quick-action" onclick="navigate('inventory')">
+      <div class="quick-action-icon" style="color:var(--text-muted)">👗</div>
+      <span class="quick-action-label">Tủ đồ</span>
+    </button>
+  </div>`;
+
+  // Lịch sử chi tiêu 6 tháng gần nhất — để gọn ở cuối trang, tránh rối phần trên
+  const monthlyHistory = getSpendingByMonth(6);
+  const maxMonthly = Math.max(1, ...monthlyHistory.map(m => m.total));
+  const hasAnySpending = monthlyHistory.some(m => m.total > 0);
+  html += `<div class="section-hd" style="margin-top:16px"><span class="section-title" style="font-size:13px;color:var(--text-muted)">📈 Chi tiêu 6 tháng gần đây</span></div>
+  <div class="stat-card" style="padding:12px 14px">`;
+  if (!hasAnySpending) {
+    html += `<div style="font-size:12px;color:var(--text-muted);text-align:center;padding:4px 0">Chưa có dữ liệu chi tiêu.</div>`;
+  } else {
+    monthlyHistory.forEach(m => {
+      const pct = m.total ? Math.max(4, Math.round(m.total / maxMonthly * 100)) : 0;
+      html += `<div class="spend-row" style="margin-bottom:6px">
+        <div class="spend-label">${m.label}</div>
+        <div class="spend-bar-track" style="height:12px"><div class="spend-bar-fill" style="width:${pct}%"></div></div>
+        <div class="spend-amount" style="font-size:11px">${m.total ? formatCurrency(m.total) : '–'}</div>
+      </div>`;
+    });
+  }
+  html += `</div>`;
+
+  document.getElementById('dashboard-content').innerHTML = html;
+}
+
+// ═══════════════════════════════════════════
+//  INVENTORY
+// ═══════════════════════════════════════════
+
+const INV_TABS = [
+  { id:'ALL', label:'Tất cả' },
+  { id:'CLOTHING', label:'👗 Quần áo' },
+  { id:'COSMETIC', label:'💄 Mỹ phẩm' },
+  { id:'FOOTWEAR', label:'👟 Giày' },
+  { id:'BAG', label:'👜 Túi xách' },
+];
+
+const IDENTITY_FILTERS = ['work','casual','date','gym','formal','travel'];
+
+function renderInventory() {
+  // Tabs
+  const tabHtml = INV_TABS.map(t =>
+    `<button class="tab-btn${invTab===t.id?' active':''}" onclick="setInvTab('${t.id}')">${t.label}</button>`
+  ).join('');
+  document.getElementById('inv-tabs').innerHTML = tabHtml;
+
+  // Filters
+  const filterHtml = `<button class="chip chip-sm${invFilter===''?' selected':''}" onclick="setInvFilter('')">Tất cả</button>` +
+    IDENTITY_FILTERS.map(f =>
+      `<button class="chip chip-sm${invFilter===f?' selected':''}" onclick="setInvFilter('${f}')">${f}</button>`
+    ).join('');
+  document.getElementById('inv-filters').innerHTML = filterHtml;
+
+  // Items
+  let items = getItems(invTab==='ALL' ? {} : {category: invTab});
+  if (invFilter) items = items.filter(i => (i.identityTags||[]).includes(invFilter)||(i.tags||[]).includes(invFilter));
+
+  // Sort: sleeping items last, recently used first
+  items.sort((a,b) => {
+    const la = getLastUsed(a.id);
+    const lb = getLastUsed(b.id);
+    if (!la && !lb) return 0;
+    if (!la) return 1;
+    if (!lb) return -1;
+    return new Date(lb) - new Date(la);
+  });
+
+  let html = '';
+  if (items.length === 0) {
+    html = `<div class="empty">
+      <div class="empty-icon">${invTab==='COSMETIC'?'💄':invTab==='FOOTWEAR'?'👟':invTab==='BAG'?'👜':'👗'}</div>
+      <h3>Tủ đồ trống</h3>
+      <p>Thêm món đồ đầu tiên của bạn!</p>
+      <button class="btn btn-primary" style="margin-top:16px" onclick="navigate('add')">+ Thêm đồ</button>
+    </div>`;
+  } else {
+    html = `<div class="gap-8">`;
+    items.forEach(item => {
+      const cpw = getCPW(item);
+      const days = getDaysSinceLastUsed(item.id);
+      const count = getUsageCount(item.id);
+      const exp = getExpiryStatus(item);
+      const sleeping = isSleeping(item);
+
+      let badges = `<span class="badge ${CAT_BADGE[item.category]}">${CAT_LABELS[item.category]}</span>`;
+      if (sleeping) badges += `<span class="badge badge-warning">😴 Ít dùng</span>`;
+      if (exp && exp.urgent) badges += `<span class="badge badge-danger">⏰ ${exp.label}</span>`;
+      if (cpw) badges += `<span class="badge badge-muted">CPW ${formatCurrency(cpw)}</span>`;
+
+      const codeLabel = item.itemCode ? `[${item.itemCode}] ` : '';
+      const meta = item.category==='COSMETIC'
+        ? `${codeLabel}${count} lần dùng${exp?' · '+exp.label:''}`
+        : `${codeLabel}${count} lần · ${days===null?'Chưa dùng':fmtDaysAgo(getLastUsed(item.id))}`;
+
+      html += `<div class="item-card" onclick="navigate('detail',{id:'${item.id}'})">
+        <div class="item-thumb">${thumbInner(item)}</div>
+        <div class="item-info">
+          <div class="item-name">${escHtml(item.name)}</div>
+          <div class="item-meta">${fmt(item.brand)} · ${meta}</div>
+          <div class="item-badges">${badges}</div>
+        </div>
+      </div>`;
+    });
+    html += `</div>`;
+  }
+
+  document.getElementById('inventory-content').innerHTML = html;
+}
+
+function setInvTab(tab) { invTab = tab; renderInventory(); }
+function setInvFilter(f) { invFilter = f; renderInventory(); }
+
+// ═══════════════════════════════════════════
+//  ADD / EDIT ITEM
+// ═══════════════════════════════════════════
+
+let addCategory = '';
+let editingItem = null;
+
+function renderAddItem(editId) {
+  _pendingImage = null;
+  editingItem = editId ? getItem(editId) : null;
+  addCategory = editingItem ? editingItem.category : '';
+  document.getElementById('add-title').textContent = editingItem ? 'Chỉnh sửa' : 'Thêm đồ mới';
+
+  const html = `
+  <form id="add-form" onsubmit="submitItem(event)">
+
+    ${!editingItem ? `
+    <div class="form-group">
+      <label class="form-label">Loại đồ</label>
+      <div class="cat-grid">
+        <div class="cat-opt${addCategory==='CLOTHING'?' sel-CLOTHING':''}" onclick="selectCat('CLOTHING',this)">
+          <span class="c-icon">👗</span><span class="c-name">Quần áo</span>
+        </div>
+        <div class="cat-opt${addCategory==='COSMETIC'?' sel-COSMETIC':''}" onclick="selectCat('COSMETIC',this)">
+          <span class="c-icon">💄</span><span class="c-name">Mỹ phẩm</span>
+        </div>
+        <div class="cat-opt${addCategory==='FOOTWEAR'?' sel-FOOTWEAR':''}" onclick="selectCat('FOOTWEAR',this)">
+          <span class="c-icon">👟</span><span class="c-name">Giày dép</span>
+        </div>
+        <div class="cat-opt${addCategory==='BAG'?' sel-BAG':''}" onclick="selectCat('BAG',this)">
+          <span class="c-icon">👜</span><span class="c-name">Túi xách</span>
+        </div>
+      </div>
+    </div>` : ''}
+
+    <div id="add-fields"></div>
+
+    <div style="margin-top:8px">
+      <button type="submit" class="btn btn-primary btn-full">
+        ${editingItem ? 'Lưu thay đổi' : 'Thêm vào tủ đồ'}
+      </button>
+      ${editingItem ? `<button type="button" class="btn btn-danger btn-full" style="margin-top:8px" onclick="confirmDelete('${editingItem.id}')">Xoá khỏi tủ đồ</button>` : ''}
+    </div>
+  </form>`;
+
+  document.getElementById('add-content').innerHTML = html;
+  if (addCategory) renderAddFields();
+}
+
+function selectCat(cat, el) {
+  addCategory = cat;
+  document.querySelectorAll('.cat-opt').forEach(c => c.className = 'cat-opt');
+  el.classList.add('sel-'+cat);
+  renderAddFields();
+}
+
+function renderAddFields() {
+  const it = editingItem;
+  const v = (key, fallback='') => it ? (it[key]??fallback) : fallback;
+  const vArr = (key) => it ? (it[key]||[]) : [];
+
+  const seasonOpts = ['spring','summer','fall','winter'];
+  const seasonLabels = {spring:'Xuân',summer:'Hè',fall:'Thu',winter:'Đông'};
+  const usageEnvOpts = ['office','casual','outdoor','rain','walk-heavy','formal'];
+  const identityOpts = ['work','casual','date','gym','formal','travel'];
+
+  let f = `
+  <!-- Basic fields (all categories) -->
+  <div class="form-group">
+    <label class="form-label">Tên <span class="opt">(bắt buộc)</span></label>
+    <input class="form-input" id="f-name" required placeholder="VD: Áo sơ mi trắng Uniqlo" value="${escHtml(v('name'))}">
+  </div>
+  <div class="form-row">
+    <div class="form-group">
+      <label class="form-label">Thương hiệu <span class="opt">tùy chọn</span></label>
+      <input class="form-input" id="f-brand" placeholder="Zara, Uniqlo..." value="${escHtml(v('brand'))}">
+    </div>
+    <div class="form-group">
+      <label class="form-label">Giá mua <span class="opt">tùy chọn</span></label>
+      <input class="form-input" id="f-price" type="number" placeholder="350000" value="${v('price','')}" min="0">
+    </div>
+  </div>
+  <div class="form-group">
+    <label class="form-label">Ngày mua <span class="opt">tùy chọn</span></label>
+    <input class="form-input" id="f-purchaseDate" type="date" value="${v('purchaseDate','')?.split('T')[0]||''}">
+  </div>
+`;
+  const existingImg = (v('imageUrls',[])||[])[0]||'';
+  f += `
+  <div class="form-group">
+    <label class="form-label">Ảnh <span class="opt">tùy chọn</span></label>
+    <label style="display:flex;align-items:center;gap:10px;padding:11px 14px;border:1.5px dashed var(--border);border-radius:var(--r-sm);cursor:pointer;background:var(--surface)">
+      <span style="font-size:20px">📷</span>
+      <span style="font-size:14px;color:var(--text-muted)">Chọn ảnh từ máy</span>
+      <input type="file" accept="image/*" onchange="handleImageUpload(event)" style="display:none">
+    </label>
+    ${existingImg?`<img id="img-preview" src="${escHtml(existingImg)}" style="width:100%;max-height:180px;object-fit:cover;border-radius:var(--r-sm);margin-top:8px">`:`<img id="img-preview" style="display:none;width:100%;max-height:180px;object-fit:cover;border-radius:var(--r-sm);margin-top:8px">`}
+  </div>`;
+
+  // Category-specific
+  if (addCategory === 'CLOTHING') {
+    const typeOpts = ['top','bottom','dress','outerwear','underwear','accessory'];
+    const typeLabels = {top:'Áo',bottom:'Quần',dress:'Váy/Jumpsuit',outerwear:'Áo khoác',underwear:'Đồ lót',accessory:'Phụ kiện'};
+    const fitOpts = ['slim','regular','oversized'];
+    const occasionOpts = ['casual','work','formal','sport','beach'];
+    const occasionLabels = {casual:'Casual',work:'Đi làm',formal:'Formal',sport:'Thể thao',beach:'Biển'};
+
+    f += `
+    <div class="divider"></div>
+    <div class="form-group">
+      <label class="form-label">Loại trang phục</label>
+      <div class="chip-group" id="chips-clothingType">
+        ${typeOpts.map(t => `<div class="chip chip-sm${vArr('clothingType').includes?v('clothingType')===t?' selected':'':v('clothingType')===t?' selected':''}" data-val="${t}" onclick="toggleChipSingle('chips-clothingType','f-clothingType',this)">${typeLabels[t]}</div>`).join('')}
+      </div>
+      <input type="hidden" id="f-clothingType" value="${v('clothingType')}">
+    </div>
+    <div class="form-row">
+      <div class="form-group">
+        <label class="form-label">Màu sắc</label>
+        <input class="form-input" id="f-color" placeholder="Trắng, Đen, Xanh..." value="${escHtml(v('color'))}">
+      </div>
+      <div class="form-group">
+        <label class="form-label">Size</label>
+        <input class="form-input" id="f-size" placeholder="S, M, L, 28..." value="${escHtml(v('size'))}">
+      </div>
+    </div>
+    <div class="form-group">
+      <label class="form-label">Fit</label>
+      <div class="chip-group">
+        ${fitOpts.map(f2 => `<div class="chip chip-sm${v('fit')===f2?' selected':''}" data-val="${f2}" onclick="toggleChipSingle('chips-fit','f-fit',this)">${f2}</div>`).join('')}
+      </div>
+      <input type="hidden" id="f-fit" value="${v('fit')}">
+    </div>
+    <div id="chips-fit" style="display:none"></div>
+    <div class="form-group">
+      <label class="form-label">Mùa</label>
+      <div class="chip-group" id="chips-season">
+        ${seasonOpts.map(s => `<div class="chip chip-sm${vArr('season').includes(s)?' selected':''}" data-val="${s}" onclick="toggleChipMulti(this,'f-season')">${seasonLabels[s]}</div>`).join('')}
+      </div>
+      <input type="hidden" id="f-season" value="${vArr('season').join(',')}">
+    </div>
+    <div class="form-group">
+      <label class="form-label">Dịp mặc</label>
+      <div class="chip-group" id="chips-occasion">
+        ${occasionOpts.map(o => `<div class="chip chip-sm${v('occasion')===o?' selected':''}" data-val="${o}" onclick="toggleChipSingle('chips-occasion','f-occasion',this)">${occasionLabels[o]}</div>`).join('')}
+      </div>
+      <input type="hidden" id="f-occasion" value="${v('occasion')}">
+    </div>`;
+  }
+
+  if (addCategory === 'COSMETIC') {
+    const stepOpts = ['cleanser','toner','serum','moisturizer','sunscreen','eye-cream','mask','makeup','hair-body'];
+    const stepLabels = {cleanser:'Tẩy trang/Rửa mặt',toner:'Toner',serum:'Serum',moisturizer:'Dưỡng ẩm',
+      sunscreen:'Chống nắng','eye-cream':'Mắt',mask:'Mặt nạ',makeup:'Makeup','hair-body':'Tóc/Body'};
+    const skinTypes = ['oily','dry','combination','sensitive','normal'];
+    const skinLabels = {oily:'Da dầu',dry:'Da khô',combination:'Da hỗn hợp',sensitive:'Da nhạy cảm',normal:'Da thường'};
+
+    f += `
+    <div class="divider"></div>
+    <div class="form-group">
+      <label class="form-label">Bước trong routine</label>
+      <div class="chip-group" id="chips-cosmeticStep">
+        ${stepOpts.map(s => `<div class="chip chip-sm${v('cosmeticStep')===s?' selected':''}" data-val="${s}" onclick="toggleChipSingle('chips-cosmeticStep','f-cosmeticStep',this)">${stepLabels[s]}</div>`).join('')}
+      </div>
+      <input type="hidden" id="f-cosmeticStep" value="${v('cosmeticStep')}">
+    </div>
+    <div class="form-group">
+      <label class="form-label">Loại da phù hợp <span class="opt">tùy chọn</span></label>
+      <div class="chip-group" id="chips-skinType">
+        ${skinTypes.map(s => `<div class="chip chip-sm${v('skinType')===s?' selected':''}" data-val="${s}" onclick="toggleChipSingle('chips-skinType','f-skinType',this)">${skinLabels[s]}</div>`).join('')}
+      </div>
+      <input type="hidden" id="f-skinType" value="${v('skinType')}">
+    </div>
+    <div class="form-row">
+      <div class="form-group">
+        <label class="form-label">Ngày mở <span class="opt">tùy chọn</span></label>
+        <input class="form-input" id="f-openedAt" type="date" value="${v('openedAt','')?.split('T')[0]||''}">
+      </div>
+      <div class="form-group">
+        <label class="form-label">Hạn sau mở (ngày) <span class="opt">PAO</span></label>
+        <input class="form-input" id="f-shelfLifeDays" type="number" placeholder="180" value="${v('shelfLifeDays','')}">
+        <div class="form-hint">Số trên nắp sản phẩm (vd: 12M = 365)</div>
+      </div>
+    </div>
+    <div class="form-group">
+      <label class="form-label">Hạn sử dụng cố định <span class="opt">tùy chọn</span></label>
+      <input class="form-input" id="f-expiryDate" type="date" value="${v('expiryDate','')?.split('T')[0]||''}">
+    </div>`;
+  }
+
+  if (addCategory === 'FOOTWEAR') {
+    const typeOpts = ['sneaker','heel','sandal','boot','flat','loafer','sport'];
+    const typeLabels = {sneaker:'Sneaker',heel:'Cao gót',sandal:'Sandal',boot:'Boot',flat:'Flat',loafer:'Loafer',sport:'Thể thao'};
+
+    f += `
+    <div class="divider"></div>
+    <div class="form-group">
+      <label class="form-label">Loại giày</label>
+      <div class="chip-group" id="chips-footwearType">
+        ${typeOpts.map(t => `<div class="chip chip-sm${v('footwearType')===t?' selected':''}" data-val="${t}" onclick="toggleChipSingle('chips-footwearType','f-footwearType',this)">${typeLabels[t]}</div>`).join('')}
+      </div>
+      <input type="hidden" id="f-footwearType" value="${v('footwearType')}">
+    </div>
+    <div class="form-row">
+      <div class="form-group">
+        <label class="form-label">Màu sắc</label>
+        <input class="form-input" id="f-color" placeholder="Trắng, Đen..." value="${escHtml(v('color'))}">
+      </div>
+      <div class="form-group">
+        <label class="form-label">Độ thoải mái (1–5)</label>
+        <input class="form-input" id="f-comfortRating" type="number" min="1" max="5" placeholder="5" value="${v('comfortRating','')}">
+      </div>
+    </div>
+    <div class="form-group">
+      <label class="form-label">Phù hợp môi trường <span class="opt">tùy chọn</span></label>
+      <div class="chip-group" id="chips-usageEnv">
+        ${usageEnvOpts.map(e2 => `<div class="chip chip-sm${vArr('usageEnvironment').includes(e2)?' selected':''}" data-val="${e2}" onclick="toggleChipMulti(this,'f-usageEnv')">${e2}</div>`).join('')}
+      </div>
+      <input type="hidden" id="f-usageEnv" value="${vArr('usageEnvironment').join(',')}">
+    </div>`;
+  }
+
+  if (addCategory === 'BAG') {
+    const bagTypeOpts = ['tote','crossbody','shoulder','backpack','clutch','handbag'];
+    const bagTypeLabels = {tote:'Tote',crossbody:'Crossbody',shoulder:'Shoulder bag',backpack:'Balo',clutch:'Clutch',handbag:'Handbag'};
+    const bagOccasionOpts = ['casual','work','formal','travel'];
+    const bagOccasionLabels = {casual:'Casual',work:'Đi làm',formal:'Formal',travel:'Du lịch'};
+
+    f += `
+    <div class="divider"></div>
+    <div class="form-group">
+      <label class="form-label">Loại túi</label>
+      <div class="chip-group" id="chips-bagType">
+        ${bagTypeOpts.map(t => `<div class="chip chip-sm${v('bagType')===t?' selected':''}" data-val="${t}" onclick="toggleChipSingle('chips-bagType','f-bagType',this)">${bagTypeLabels[t]}</div>`).join('')}
+      </div>
+      <input type="hidden" id="f-bagType" value="${v('bagType')}">
+    </div>
+    <div class="form-row">
+      <div class="form-group">
+        <label class="form-label">Màu sắc</label>
+        <input class="form-input" id="f-color" placeholder="Trắng, Đen, Nâu..." value="${escHtml(v('color'))}">
+      </div>
+      <div class="form-group">
+        <label class="form-label">Chất liệu <span class="opt">tùy chọn</span></label>
+        <input class="form-input" id="f-material" placeholder="Da, vải, nylon..." value="${escHtml(v('material'))}">
+      </div>
+    </div>
+    <div class="form-group">
+      <label class="form-label">Dịp dùng</label>
+      <div class="chip-group" id="chips-bagOccasion">
+        ${bagOccasionOpts.map(o => `<div class="chip chip-sm${v('occasion')===o?' selected':''}" data-val="${o}" onclick="toggleChipSingle('chips-bagOccasion','f-occasion',this)">${bagOccasionLabels[o]}</div>`).join('')}
+      </div>
+      <input type="hidden" id="f-occasion" value="${v('occasion')}">
+    </div>`;
+  }
+
+  // Identity tags (all categories)
+  f += `
+  <div class="divider"></div>
+  <div class="form-group">
+    <label class="form-label">Gắn với vai trò / dịp <span class="opt">tùy chọn</span></label>
+    <div class="chip-group" id="chips-identity">
+      ${identityOpts.map(t => `<div class="chip chip-sm${vArr('identityTags').includes(t)?' selected':''}" data-val="${t}" onclick="toggleChipMulti(this,'f-identityTags')">${t}</div>`).join('')}
+    </div>
+    <input type="hidden" id="f-identityTags" value="${vArr('identityTags').join(',')}">
+  </div>
+  <div class="form-group">
+    <label class="form-label">Ghi chú <span class="opt">tùy chọn</span></label>
+    <textarea class="form-textarea" id="f-notes" placeholder="Câu chuyện, lý do mua, cảm nhận...">${escHtml(v('notes'))}</textarea>
+  </div>`;
+
+  document.getElementById('add-fields').innerHTML = f;
+}
+
+function toggleChipSingle(groupId, hiddenId, el) {
+  const was = el.classList.contains('selected');
+  const parent = el.closest('.chip-group') || el.parentElement;
+  parent.querySelectorAll('.chip').forEach(c => c.classList.remove('selected'));
+  if (!was) {
+    el.classList.add('selected');
+    const h = document.getElementById(hiddenId);
+    if (h) h.value = el.dataset.val;
+  } else {
+    const h = document.getElementById(hiddenId);
+    if (h) h.value = '';
+  }
+}
+
+function toggleChipMulti(el, hiddenId) {
+  el.classList.toggle('selected');
+  const parent = el.closest('.chip-group') || el.parentElement;
+  const vals = [...parent.querySelectorAll('.chip.selected')].map(c => c.dataset.val);
+  const h = document.getElementById(hiddenId);
+  if (h) h.value = vals.join(',');
+}
+
+function gv(id, fallback='') {
+  const el = document.getElementById(id);
+  return el ? el.value.trim() || fallback : fallback;
+}
+
+function submitItem(e) {
+  e.preventDefault();
+  if (!addCategory) { showToast('Chọn loại đồ trước nhé!'); return; }
+  const name = gv('f-name');
+  if (!name) { showToast('Tên không được để trống'); return; }
+
+  const base = {
+    category: addCategory,
+    status: 'ACTIVE',
+    name,
+    brand: gv('f-brand'),
+    price: parseFloat(gv('f-price')) || null,
+    purchaseDate: gv('f-purchaseDate') ? new Date(gv('f-purchaseDate')).toISOString() : null,
+    imageUrls: _pendingImage ? [_pendingImage] : (editingItem&&editingItem.imageUrls ? editingItem.imageUrls : []),
+    notes: gv('f-notes'),
+    identityTags: gv('f-identityTags').split(',').filter(Boolean),
+    tags: [],
+  };
+
+  if (addCategory === 'CLOTHING') {
+    Object.assign(base, {
+      clothingType: gv('f-clothingType'),
+      color: gv('f-color'),
+      size: gv('f-size'),
+      fit: gv('f-fit'),
+      season: gv('f-season').split(',').filter(Boolean),
+      occasion: gv('f-occasion'),
+    });
+  } else if (addCategory === 'COSMETIC') {
+    Object.assign(base, {
+      cosmeticStep: gv('f-cosmeticStep'),
+      skinType: gv('f-skinType'),
+      openedAt: gv('f-openedAt') ? new Date(gv('f-openedAt')).toISOString() : null,
+      shelfLifeDays: parseInt(gv('f-shelfLifeDays')) || null,
+      expiryDate: gv('f-expiryDate') ? new Date(gv('f-expiryDate')).toISOString() : null,
+    });
+  } else if (addCategory === 'FOOTWEAR') {
+    Object.assign(base, {
+      footwearType: gv('f-footwearType'),
+      color: gv('f-color'),
+      comfortRating: parseInt(gv('f-comfortRating')) || null,
+      usageEnvironment: gv('f-usageEnv').split(',').filter(Boolean),
+    });
+  } else if (addCategory === 'BAG') {
+    Object.assign(base, {
+      bagType: gv('f-bagType'),
+      color: gv('f-color'),
+      material: gv('f-material'),
+      occasion: gv('f-occasion'),
+    });
+  }
+
+  if (editingItem) base.id = editingItem.id;
+  saveItem(base);
+  _pendingImage = null;
+  showToast(editingItem ? '✓ Đã cập nhật!' : '✓ Đã thêm vào tủ đồ!');
+  navigate('inventory');
+}
+
+function confirmDelete(id) {
+  if (confirm('Xoá món đồ này khỏi tủ? (Không thể hoàn tác)')) {
+    deleteItem(id);
+    showToast('Đã xoá');
+    navigate('inventory');
+  }
+}
+
+// ═══════════════════════════════════════════
+//  ITEM DETAIL
+// ═══════════════════════════════════════════
+
+function renderDetail(id) {
+  const item = getItem(id);
+  if (!item) { navigate('inventory'); return; }
+
+  document.getElementById('detail-title').textContent = item.name;
+  document.getElementById('detail-edit-btn').onclick = () => navigate('add', {editId: id});
+
+  const count = getUsageCount(id);
+  const lastUsed = getLastUsed(id);
+  const cpw = getCPW(item);
+  const exp = getExpiryStatus(item);
+  const logs = getUsageLogs(id).sort((a,b) => new Date(b.usedAt)-new Date(a.usedAt)).slice(0,12);
+  const sleeping = isSleeping(item);
+  const recs = getDeclutterRecommendations();
+  const needsDeclutter = recs.find(r => r.id === id);
+
+  // Hero
+  let heroHtml = `<div class="item-hero">${thumbInner(item)}</div>`;
+
+  // Stats bar
+  let statsHtml = `<div style="display:flex;gap:10px;padding:14px 16px;background:var(--surface);border-bottom:1px solid var(--border)">`;
+  statsHtml += `<div style="flex:1;text-align:center">
+    <div style="font-size:22px;font-weight:800">${count}</div>
+    <div style="font-size:11px;color:var(--text-muted)">Lần dùng</div>
+  </div>`;
+  if (cpw) {
+    statsHtml += `<div style="flex:1;text-align:center">
+      <div style="font-size:22px;font-weight:800;color:${cpw<10000?'var(--success)':cpw<50000?'var(--warning)':'var(--danger)'}">${formatCurrency(cpw)}</div>
+      <div style="font-size:11px;color:var(--text-muted)">CPW</div>
+    </div>`;
+  }
+  if (exp) {
+    statsHtml += `<div style="flex:1;text-align:center">
+      <div style="font-size:16px;font-weight:700" class="${exp.cls}">${exp.label}</div>
+      <div style="font-size:11px;color:var(--text-muted)">Hạn dùng</div>
+    </div>`;
+  } else if (lastUsed) {
+    statsHtml += `<div style="flex:1;text-align:center">
+      <div style="font-size:16px;font-weight:700">${fmtDaysAgo(lastUsed)}</div>
+      <div style="font-size:11px;color:var(--text-muted)">Dùng gần nhất</div>
+    </div>`;
+  }
+  statsHtml += `</div>`;
+
+  // Alerts
+  let alertsHtml = '';
+  if (exp && exp.urgent) {
+    alertsHtml += `<div class="rec-box skip" style="margin:14px 16px 0">
+      <div class="rec-title">⚠️ Sản phẩm ${exp.days < 0 ? 'đã hết hạn' : 'sắp hết hạn'}</div>
+      <div class="rec-note">${exp.days < 0 ? 'Không nên tiếp tục sử dụng.' : `Còn khoảng ${exp.days} ngày. Cân nhắc dùng hết hoặc xử lý.`}</div>
+    </div>`;
+  }
+  if (sleeping) {
+    alertsHtml += `<div class="rec-box wait" style="margin:14px 16px 0">
+      <div class="rec-title">💤 Đồ đang ngủ quên</div>
+      <div class="rec-note">Chưa dùng ${getDaysSinceLastUsed(id)||'–'} ngày. Thử mix lại hoặc cân nhắc nhường cho người khác?</div>
+    </div>`;
+  }
+
+  // Details
+  let fields = [
+    ['Danh mục', `<span class="badge ${CAT_BADGE[item.category]}">${CAT_ICONS[item.category]} ${CAT_LABELS[item.category]}</span>`],
+    item.itemCode ? ['Mã', `<span style="font-family:monospace;font-weight:700;color:var(--primary)">${item.itemCode}</span>`] : null,
+    ['Thương hiệu', fmt(item.brand)],
+    ['Giá mua', formatCurrency(item.price)],
+    ['Ngày mua', fmtDate(item.purchaseDate)],
+  ];
+
+  if (item.category === 'CLOTHING') {
+    fields.push(
+      ['Loại', fmt(item.clothingType)],
+      ['Màu', fmt(item.color)],
+      ['Size', fmt(item.size)],
+      ['Fit', fmt(item.fit)],
+      ['Mùa', (item.season||[]).join(', ')||'–'],
+      ['Dịp', fmt(item.occasion)],
+    );
+  } else if (item.category === 'COSMETIC') {
+    fields.push(
+      ['Bước routine', fmt(item.cosmeticStep)],
+      ['Loại da', fmt(item.skinType)],
+      ['Ngày mở', fmtDate(item.openedAt)],
+      ['PAO', item.shelfLifeDays ? item.shelfLifeDays + ' ngày' : '–'],
+      ['Hết hạn', exp ? `<span class="${exp.cls}">${exp.label}</span>` : fmtDate(item.expiryDate)],
+    );
+  } else if (item.category === 'FOOTWEAR') {
+    const stars = item.comfortRating ? '⭐'.repeat(item.comfortRating) : '–';
+    fields.push(
+      ['Loại giày', fmt(item.footwearType)],
+      ['Màu', fmt(item.color)],
+      ['Comfort', stars],
+      ['Môi trường', (item.usageEnvironment||[]).join(', ')||'–'],
+    );
+  } else if (item.category === 'BAG') {
+    fields.push(
+      ['Loại túi', fmt(item.bagType)],
+      ['Màu', fmt(item.color)],
+      ['Chất liệu', fmt(item.material)],
+      ['Dịp dùng', fmt(item.occasion)],
+    );
+  }
+
+  if (item.identityTags && item.identityTags.length) {
+    fields.push(['Vai trò', item.identityTags.map(t => `<span class="badge badge-muted">${t}</span>`).join(' ')]);
+  }
+  if (item.notes) fields.push(['Ghi chú', escHtml(item.notes)]);
+
+  let detailHtml = `<div class="detail-section">
+    ${fields.filter(Boolean).map(([k,v2]) => `<div class="detail-row"><span class="detail-key">${k}</span><span class="detail-val">${v2}</span></div>`).join('')}
+  </div>`;
+
+  // Usage history
+  if (logs.length > 0) {
+    detailHtml += `<div class="detail-section" style="padding-top:8px">
+      <div class="section-hd"><span class="section-title">Lịch sử dùng</span></div>
+      <div class="gap-8">
+        ${logs.map(l => `<div style="display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-bottom:1px solid var(--border)">
+          <span style="font-size:14px">${fmtDate(l.usedAt)}</span>
+          <span style="font-size:13px;color:var(--text-muted)">${escHtml(l.notes)||'–'}</span>
+        </div>`).join('')}
+      </div>
+    </div>`;
+  }
+
+  // Actions
+  detailHtml += `<div class="detail-section">
+    <button class="btn btn-secondary btn-full" style="margin-bottom:8px" onclick="quickLogToday('${id}')">
+      ✓ Đánh dấu đã dùng hôm nay
+    </button>`;
+  if (needsDeclutter) {
+    detailHtml += `<button class="btn btn-ghost btn-full" onclick="showDeclutterModal('${id}')">
+      🌿 Xử lý món đồ này
+    </button>`;
+  }
+  detailHtml += `</div>`;
+
+  document.getElementById('detail-content').innerHTML = heroHtml + statsHtml + alertsHtml + detailHtml;
+}
+
+function quickLogToday(itemId) {
+  logUsage([itemId], new Date().toISOString(), '');
+  renderDetail(itemId); // refresh
+}
+
+// ═══════════════════════════════════════════
+//  LOG USAGE MODAL
+// ═══════════════════════════════════════════
+
+function renderLogUsageModal() {
+  const activeItems = getItems({}).filter(i => i.status === 'ACTIVE');
+  if (!activeItems.length) {
+    document.getElementById('modal-log-content').innerHTML = `<p style="color:var(--text-muted);padding:16px 0">Chưa có đồ trong tủ.</p>`;
+    return;
+  }
+
+  let html = `
+  <div style="padding:8px 0 12px">
+    <input class="form-input" id="log-search" placeholder="🔍 Tìm theo tên đồ..." oninput="filterLogItems()" style="margin-bottom:10px">
+    <p style="font-size:14px;color:var(--text-muted);margin-bottom:12px">Chọn những món đã mặc/dùng hôm nay:</p>
+    <div id="log-items" class="gap-8">`;
+
+  const grouped = {CLOTHING:[], FOOTWEAR:[], BAG:[], COSMETIC:[]};
+  activeItems.forEach(i => { if (grouped[i.category]) grouped[i.category].push(i); });
+
+  ['CLOTHING','FOOTWEAR','BAG','COSMETIC'].forEach(cat => {
+    if (!grouped[cat].length) return;
+    html += `<div data-cat-header style="font-size:12px;font-weight:700;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.5px;margin:6px 0 4px">${CAT_LABELS[cat]}</div>`;
+    grouped[cat].forEach(item => {
+      const searchKey = (item.name + ' ' + (item.brand||'')).toLowerCase();
+      html += `<label data-name="${escHtml(searchKey)}" style="display:flex;align-items:center;gap:10px;padding:10px;background:var(--bg);border-radius:var(--r-sm);cursor:pointer">
+        <input type="checkbox" name="log-item" value="${item.id}" style="width:18px;height:18px;accent-color:var(--primary)">
+        <span style="font-size:14px;font-weight:500">${escHtml(item.name)}</span>
+        <span style="font-size:12px;color:var(--text-muted);margin-left:auto">${item.brand||''}</span>
+      </label>`;
+    });
+  });
+
+  html += `</div>
+    <p id="log-empty" style="display:none;color:var(--text-muted);font-size:13px;text-align:center;padding:12px 0">Không tìm thấy món nào.</p>
+    <div class="form-group" style="margin-top:12px">
+      <label class="form-label">Ghi chú <span class="opt">tùy chọn</span></label>
+      <input class="form-input" id="log-notes" placeholder="Đi làm, đi chơi, ở nhà...">
+    </div>
+    <button class="btn btn-primary btn-full" onclick="submitLogUsage()">Lưu lại</button>
+  </div>`;
+
+  document.getElementById('modal-log-content').innerHTML = html;
+}
+
+// Lọc danh sách trong modal ghi log theo tên/thương hiệu, ẩn luôn tiêu đề
+// category nếu không còn món nào khớp trong nhóm đó.
+function filterLogItems() {
+  const q = (document.getElementById('log-search').value || '').trim().toLowerCase();
+  const container = document.getElementById('log-items');
+  const children = [...container.children];
+  let currentHeader = null;
+  let headerHasVisible = false;
+  let anyVisible = false;
+
+  children.forEach(el => {
+    if (el.dataset.catHeader !== undefined) {
+      if (currentHeader) currentHeader.style.display = headerHasVisible ? '' : 'none';
+      currentHeader = el;
+      headerHasVisible = false;
+    } else if (el.tagName === 'LABEL') {
+      const visible = !q || (el.dataset.name || '').includes(q);
+      el.style.display = visible ? 'flex' : 'none';
+      if (visible) { headerHasVisible = true; anyVisible = true; }
+    }
+  });
+  if (currentHeader) currentHeader.style.display = headerHasVisible ? '' : 'none';
+
+  const emptyMsg = document.getElementById('log-empty');
+  if (emptyMsg) emptyMsg.style.display = anyVisible ? 'none' : 'block';
+}
+
+function submitLogUsage() {
+  const checked = [...document.querySelectorAll('input[name="log-item"]:checked')].map(c => c.value);
+  if (!checked.length) { showToast('Chọn ít nhất 1 món!'); return; }
+  const notes = document.getElementById('log-notes')?.value || '';
+  logUsage(checked, new Date().toISOString(), notes);
+  closeModal('modal-log-usage');
+  if (currentPage === 'dashboard') renderDashboard();
+  if (currentPage === 'inventory') renderInventory();
+}
+
+// ═══════════════════════════════════════════
+//  PRE-PURCHASE CHECK
+// ═══════════════════════════════════════════
+
+let checkCat = '';
+let checkResult = null;
+let checklistState = {};
+
+const CHECK_QUESTIONS = {
+  CLOTHING: [
+    'Mình đã có món nào cùng màu/kiểu chưa?',
+    'Realistic sẽ mặc bao nhiêu lần trong 6 tháng tới?',
+    'Món này có phù hợp với lifestyle hiện tại không (công việc, khí hậu)?',
+    'Có phối được với ít nhất 3 món đang có không?',
+    'Mua vì thật sự cần hay vì sale/trend/tâm trạng?',
+  ],
+  COSMETIC: [
+    'Mình đang có sản phẩm nào cùng bước routine chưa?',
+    'Với tần suất dùng hiện tại, có kịp dùng hết trước hạn không?',
+    'Đây là nhu cầu thực hay FOMO từ review trên mạng?',
+    'Routine có trở nên phức tạp hơn khi thêm món này không?',
+    'Có thể thử mini/sample trước không?',
+  ],
+  FOOTWEAR: [
+    'Đã có đôi nào "đủ tốt" cho dịp này chưa?',
+    'Realistic sẽ đi đôi này bao nhiêu lần mỗi tháng?',
+    'Từng gặp vấn đề comfort với kiểu/brand tương tự chưa?',
+    'Mua vì trend/collecting hay vì gap chức năng thật?',
+    'Có đủ chỗ để cất không?',
+  ],
+  BAG: [
+    'Mình đã có túi nào cùng công năng/dịp dùng chưa?',
+    'Realistic sẽ dùng túi này bao nhiêu lần trong 3 tháng tới?',
+    'Có phối được với nhiều outfit đang có không?',
+    'Mua vì thật sự cần hay vì thấy đẹp trên mạng?',
+    'Có đủ chỗ cất và bảo quản không?',
+  ],
+};
+
+function renderCheck() {
+  let html = `
+  <div class="info-box" style="margin-bottom:16px">
+    💡 Nhập thông tin món đồ sắp mua. App sẽ kiểm tra tủ đồ của bạn và đưa ra gợi ý.
+  </div>
+
+  <div class="form-group">
+    <label class="form-label">Loại đồ</label>
+    <div class="cat-grid">
+      <div class="cat-opt${checkCat==='CLOTHING'?' sel-CLOTHING':''}" onclick="setCheckCat('CLOTHING',this)">
+        <span class="c-icon">👗</span><span class="c-name">Quần áo</span>
+      </div>
+      <div class="cat-opt${checkCat==='COSMETIC'?' sel-COSMETIC':''}" onclick="setCheckCat('COSMETIC',this)">
+        <span class="c-icon">💄</span><span class="c-name">Mỹ phẩm</span>
+      </div>
+      <div class="cat-opt${checkCat==='FOOTWEAR'?' sel-FOOTWEAR':''}" onclick="setCheckCat('FOOTWEAR',this)">
+        <span class="c-icon">👟</span><span class="c-name">Giày dép</span>
+      </div>
+      <div class="cat-opt${checkCat==='BAG'?' sel-BAG':''}" onclick="setCheckCat('BAG',this)">
+        <span class="c-icon">👜</span><span class="c-name">Túi xách</span>
+      </div>
+    </div>
+  </div>
+
+  <div id="check-detail-fields"></div>
+  <div id="check-result"></div>`;
+
+  document.getElementById('check-content').innerHTML = html;
+  if (checkCat) renderCheckFields();
+}
+
+function setCheckCat(cat, el) {
+  checkCat = cat;
+  checkResult = null;
+  checklistState = {};
+  document.querySelectorAll('#check-content .cat-opt').forEach(c => c.className='cat-opt');
+  el.classList.add('sel-'+cat);
+  renderCheckFields();
+}
+
+function renderCheckFields() {
+  let f = '';
+  if (checkCat === 'CLOTHING') {
+    const typeOpts = ['top','bottom','dress','outerwear','accessory'];
+    const typeLabels = {top:'Áo',bottom:'Quần',dress:'Váy/Jumpsuit',outerwear:'Áo khoác',accessory:'Phụ kiện'};
+    f = `
+    <div class="form-group">
+      <label class="form-label">Loại trang phục</label>
+      <div class="chip-group" id="ck-chips-clothingType">
+        ${typeOpts.map(t => `<div class="chip chip-sm" data-val="${t}" onclick="toggleChipSingle('ck-chips-clothingType','ck-clothingType',this)">${typeLabels[t]}</div>`).join('')}
+      </div>
+      <input type="hidden" id="ck-clothingType">
+    </div>
+    <div class="form-group">
+      <label class="form-label">Màu sắc <span class="opt">tùy chọn</span></label>
+      <input class="form-input" id="ck-color" placeholder="Trắng, Đen, Xanh...">
+    </div>`;
+  const occasionOpts2 = ['casual','work','formal','sport','beach'];
+  const occasionLabels2 = {casual:'Casual',work:'Đi làm',formal:'Formal',sport:'Thể thao',beach:'Biển'};
+  f += `
+<div class="form-group">
+  <label class="form-label">Dịp mặc <span class="opt">tùy chọn</span></label>
+  <div class="chip-group" id="ck-chips-occasion">
+    ${occasionOpts2.map(o => `<div class="chip chip-sm" data-val="${o}" onclick="toggleChipSingle('ck-chips-occasion','ck-occasion',this)">${occasionLabels2[o]}</div>`).join('')}
+  </div>
+  <input type="hidden" id="ck-occasion">
+</div>`;
+  } else if (checkCat === 'COSMETIC') {
+    const stepOpts = ['cleanser','toner','serum','moisturizer','sunscreen','makeup','eye-cream'];
+    const stepLabels = {cleanser:'Tẩy trang/Rửa mặt',toner:'Toner',serum:'Serum',moisturizer:'Dưỡng ẩm',sunscreen:'Chống nắng',makeup:'Makeup','eye-cream':'Mắt'};
+    f = `
+    <div class="form-group">
+      <label class="form-label">Bước trong routine</label>
+      <div class="chip-group" id="ck-chips-step">
+        ${stepOpts.map(s => `<div class="chip chip-sm" data-val="${s}" onclick="toggleChipSingle('ck-chips-step','ck-step',this)">${stepLabels[s]}</div>`).join('')}
+      </div>
+      <input type="hidden" id="ck-step">
+    </div>`;
+  } else if (checkCat === 'FOOTWEAR') {
+    const typeOpts = ['sneaker','heel','sandal','boot','flat','sport'];
+    const typeLabels = {sneaker:'Sneaker',heel:'Cao gót',sandal:'Sandal',boot:'Boot',flat:'Flat',sport:'Thể thao'};
+    f = `
+    <div class="form-group">
+      <label class="form-label">Loại giày</label>
+      <div class="chip-group" id="ck-chips-footwearType">
+        ${typeOpts.map(t => `<div class="chip chip-sm" data-val="${t}" onclick="toggleChipSingle('ck-chips-footwearType','ck-footwearType',this)">${typeLabels[t]}</div>`).join('')}
+      </div>
+      <input type="hidden" id="ck-footwearType">
+    </div>`;
+  } else if (checkCat === 'BAG') {
+    const bagTypeOpts = ['tote','crossbody','shoulder','backpack','clutch','handbag'];
+    const bagTypeLabels = {tote:'Tote',crossbody:'Crossbody',shoulder:'Shoulder bag',backpack:'Balo',clutch:'Clutch',handbag:'Handbag'};
+    f = `
+    <div class="form-group">
+      <label class="form-label">Loại túi</label>
+      <div class="chip-group" id="ck-chips-bagType">
+        ${bagTypeOpts.map(t => `<div class="chip chip-sm" data-val="${t}" onclick="toggleChipSingle('ck-chips-bagType','ck-bagType',this)">${bagTypeLabels[t]}</div>`).join('')}
+      </div>
+      <input type="hidden" id="ck-bagType">
+    </div>
+    <div class="form-group">
+      <label class="form-label">Màu sắc <span class="opt">tùy chọn</span></label>
+      <input class="form-input" id="ck-color" placeholder="Trắng, Đen, Nâu...">
+    </div>`;
+  }
+
+  f += `
+  <div class="form-group">
+    <label class="form-label">Giá dự kiến <span class="opt">tùy chọn</span></label>
+    <input class="form-input" id="ck-price" type="number" placeholder="0">
+  </div>
+  <button class="btn btn-primary btn-full" onclick="runCheck()" style="margin-bottom:16px">
+    🔍 Kiểm tra tủ đồ
+  </button>`;
+
+  document.getElementById('check-detail-fields').innerHTML = f;
+  document.getElementById('check-result').innerHTML = '';
+}
+
+function runCheck() {
+  if (!checkCat) { showToast('Chọn loại đồ trước!'); return; }
+  let attrs = {};
+  if (checkCat === 'CLOTHING') {
+    attrs = { clothingType: gv('ck-clothingType'), color: gv('ck-color'), occasion: gv('ck-occasion') };
+  } else if (checkCat === 'COSMETIC') {
+    attrs = { cosmeticStep: gv('ck-step') };
+  } else if (checkCat === 'FOOTWEAR') {
+    attrs = { footwearType: gv('ck-footwearType') };
+  } else if (checkCat === 'BAG') {
+    attrs = { bagType: gv('ck-bagType'), color: gv('ck-color') };
+  }
+  const price = parseFloat(gv('ck-price')) || null;
+  checkResult = getPurchaseRecommendation(checkCat, attrs, price);
+  checkResult._price = price;
+  checklistState = {};
+  renderCheckResult();
+}
+
+function renderCheckResult() {
+  if (!checkResult) return;
+  const questions = CHECK_QUESTIONS[checkCat] || [];
+  checklistState = checklistState || {};
+
+  let html = '';
+  if (checkResult._price > 0 && DB.settings.monthlyBudget > 0) {
+    const spent2 = getMonthlySpending();
+    const remaining2 = DB.settings.monthlyBudget - spent2;
+    if (checkResult._price > remaining2) {
+      html += `<div class="rec-box skip" style="margin-bottom:10px">
+        <div class="rec-title">💰 Vượt ngân sách tháng</div>
+        <div class="rec-note">Còn lại ${formatCurrency(Math.max(0,remaining2))} trong tháng. Món này giá ${formatCurrency(checkResult._price)}${remaining2<0?' (đã vượt rồi)':''}.</div>
+      </div>`;
+    }
+  }
+  html += `<div class="rec-box ${checkResult.cls}">
+    <div class="rec-title">${checkResult.label}</div>
+    <div class="rec-note">${checkResult.note}</div>
+  </div>`;
+
+  // Similar items
+  if (checkResult.similar && checkResult.similar.length > 0) {
+    html += `<div class="section-hd" style="margin-bottom:8px"><span class="section-title">Đồ tương tự đang có</span></div>
+    <div class="gap-8" style="margin-bottom:14px">`;
+    checkResult.similar.forEach(item => {
+      const count = getUsageCount(item.id);
+      const cpw = getCPW(item);
+      const days = getDaysSinceLastUsed(item.id);
+      html += `<div class="item-card" onclick="navigate('detail',{id:'${item.id}'})">
+        <div class="item-thumb">${thumbInner(item)}</div>
+        <div class="item-info">
+          <div class="item-name">${escHtml(item.name)}</div>
+          <div class="item-meta">${count} lần dùng · ${days===null?'Chưa dùng':fmtDaysAgo(getLastUsed(item.id))}${cpw?' · CPW '+formatCurrency(cpw):''}</div>
+        </div>
+      </div>`;
+    });
+    html += `</div>`;
+  }
+
+  // Checklist
+  if (questions.length > 0) {
+    html += `<div class="section-hd" style="margin-bottom:8px"><span class="section-title">Tự kiểm tra nhanh</span></div>
+    <div style="background:var(--surface);border-radius:var(--r);padding:4px 14px;margin-bottom:14px">`;
+    questions.forEach((q, i) => {
+      const checked = checklistState[i] || false;
+      html += `<div class="ck-item">
+        <div class="ck-box${checked?' checked':''}" onclick="toggleChecklist(${i})">${checked?'✓':''}</div>
+        <div class="ck-text">${q}</div>
+      </div>`;
+    });
+    html += `</div>`;
+  }
+
+  // Maybe later
+  html += `<div style="display:flex;gap:8px">
+    <button class="btn btn-ghost" style="flex:1" onclick="showToast('Đã thêm vào Maybe List! 📝')">
+      📌 Để sau 3 ngày
+    </button>
+    <button class="btn btn-primary" style="flex:1" onclick="navigate('add')">
+      + Thêm vào tủ đồ
+    </button>
+  </div>`;
+
+  document.getElementById('check-result').innerHTML = html;
+}
+
+function toggleChecklist(i) {
+  checklistState[i] = !checklistState[i];
+  renderCheckResult();
+}
+
+// ═══════════════════════════════════════════
+//  DECLUTTER
+// ═══════════════════════════════════════════
+
+const DEC_TABS = [
+  {id:'ALL', label:'Tất cả'},
+  {id:'CLOTHING', label:'👗'},
+  {id:'COSMETIC', label:'💄'},
+  {id:'FOOTWEAR', label:'👟'},
+  {id:'BAG', label:'👜'},
+];
+
+function renderDeclutter() {
+  const tabHtml = DEC_TABS.map(t =>
+    `<button class="tab-btn${declutterTab===t.id?' active':''}" onclick="setDeclutterTab('${t.id}')">${t.label}</button>`
+  ).join('');
+  document.getElementById('declutter-tabs').innerHTML = tabHtml;
+
+  let recs = getDeclutterRecommendations();
+  if (declutterTab !== 'ALL') recs = recs.filter(i => i.category === declutterTab);
+
+  let html = '';
+  if (recs.length === 0) {
+    html = `<div class="empty">
+      <div class="empty-icon">🎉</div>
+      <h3>Tủ đồ gọn gàng rồi!</h3>
+      <p>Không có món nào cần xem lại lúc này. Tiếp tục ghi lại việc sử dụng để app có thể gợi ý chính xác hơn.</p>
+    </div>`;
+  } else {
+    html = `<p style="font-size:13px;color:var(--text-muted);margin-bottom:12px">
+      ${recs.length} món cần xem lại. Nhấn vào từng món để quyết định.
+    </p>
+    <div class="gap-8">`;
+
+    recs.forEach(item => {
+      const exp = getExpiryStatus(item);
+      const cpw = getCPW(item);
+      const days = getDaysSinceLastUsed(item.id);
+      const count = getUsageCount(item.id);
+
+      let reason = '';
+      if (item.category === 'COSMETIC') {
+        if (exp && exp.days < 0) reason = `<span class="badge badge-danger">Đã hết hạn</span>`;
+        else if (exp && exp.urgent) reason = `<span class="badge badge-warning">⏰ ${exp.label}</span>`;
+        else if (count === 0) reason = `<span class="badge badge-muted">Chưa dùng lần nào</span>`;
+        else reason = `<span class="badge badge-warning">Ít dùng</span>`;
+      } else {
+        if (!days && item.purchaseDate) reason = `<span class="badge badge-warning">Chưa bao giờ dùng</span>`;
+        else if (days && days > 90) reason = `<span class="badge badge-warning">Không dùng ${days} ngày</span>`;
+        if (cpw && cpw > 200000) reason += `<span class="badge badge-danger" style="margin-left:4px">CPW cao</span>`;
+      }
+
+      html += `<div class="item-card">
+        <div class="item-thumb" onclick="navigate('detail',{id:'${item.id}'})">${thumbInner(item)}</div>
+        <div class="item-info" onclick="navigate('detail',{id:'${item.id}'})">
+          <div class="item-name">${escHtml(item.name)}</div>
+          <div class="item-meta">${fmt(item.brand)} · ${count} lần dùng</div>
+          <div class="item-badges">${reason}</div>
+        </div>
+        <button class="btn btn-sm btn-secondary" onclick="showDeclutterModal('${item.id}')">Xử lý</button>
+      </div>`;
+    });
+    html += `</div>`;
+  }
+
+  // Decluttered count
+  const doneCount = DB.items.filter(i => i.status === 'DECLUTTERED').length;
+  if (doneCount > 0) {
+    html += `<div class="info-box" style="margin-top:16px">
+      🎊 Đã xử lý <strong>${doneCount} món</strong> từ trước đến nay. Tủ đồ đang ngày càng gọn hơn!
+    </div>`;
+  }
+
+  document.getElementById('declutter-content').innerHTML = html;
+}
+
+function setDeclutterTab(tab) { declutterTab = tab; renderDeclutter(); }
+
+function showDeclutterModal(itemId) {
+  const item = getItem(itemId);
+  if (!item) return;
+
+  const exp = getExpiryStatus(item);
+  const cpw = getCPW(item);
+  const days = getDaysSinceLastUsed(item.id);
+  const count = getUsageCount(item.id);
+
+  let infoHtml = `<div style="background:var(--bg);border-radius:var(--r);padding:12px;margin-bottom:14px">
+    <div style="font-weight:600;margin-bottom:6px">${escHtml(item.name)}</div>
+    <div style="font-size:13px;color:var(--text-muted)">
+      ${count} lần dùng
+      ${days ? ` · Dùng gần nhất ${fmtDaysAgo(getLastUsed(itemId))}` : ' · Chưa dùng lần nào'}
+      ${cpw ? ` · CPW ${formatCurrency(cpw)}` : ''}
+      ${exp ? ` · ${exp.label}` : ''}
+    </div>
+  </div>`;
+
+  const modalHtml = `
+  ${infoHtml}
+  <div class="action-grid">
+    <button class="action-btn keep" onclick="doDeclutter('${itemId}','KEEP')">
+      <span class="a-icon">💚</span>
+      <span class="a-label">Giữ lại</span>
+      <span class="a-desc">Vẫn có giá trị</span>
+    </button>
+    <button class="action-btn sell" onclick="doDeclutter('${itemId}','SELL')">
+      <span class="a-icon">💰</span>
+      <span class="a-label">Bán lại</span>
+      <span class="a-desc">Thu hồi một phần</span>
+    </button>
+    <button class="action-btn donate" onclick="doDeclutter('${itemId}','DONATE')">
+      <span class="a-icon">🤝</span>
+      <span class="a-label">Tặng/Cho</span>
+      <span class="a-desc">Nhường người cần</span>
+    </button>
+    <button class="action-btn recycle" onclick="doDeclutter('${itemId}','RECYCLE')">
+      <span class="a-icon">♻️</span>
+      <span class="a-label">Tái chế</span>
+      <span class="a-desc">Xử lý có trách nhiệm</span>
+    </button>
+  </div>
+  <button class="btn btn-ghost btn-full" style="margin-top:8px" onclick="doDeclutter('${itemId}','MEMORY_KEEP')">
+    📸 Lưu ký ức rồi bỏ
+  </button>`;
+
+  document.getElementById('modal-declutter-title').textContent = 'Xử lý: ' + item.name;
+  document.getElementById('modal-declutter-body').innerHTML = modalHtml;
+  openModal('modal-declutter-action');
+}
+
+function doDeclutter(itemId, action) {
+  if (action === 'KEEP') {
+    // Just close modal, mark item as reviewed (no action needed)
+    closeModal('modal-declutter-action');
+    showToast('✓ Đã ghi nhận giữ lại!');
+    return;
+  }
+
+  let msg = '';
+  if (action === 'SELL') msg = 'Đã đánh dấu để bán 💰';
+  else if (action === 'DONATE') msg = 'Đã đánh dấu để tặng 🤝';
+  else if (action === 'RECYCLE') msg = 'Đã đánh dấu để tái chế ♻️';
+  else if (action === 'MEMORY_KEEP') msg = '📸 Đã lưu ký ức và xử lý';
+
+  saveDeclutter(itemId, action, '');
+  closeModal('modal-declutter-action');
+  showToast(msg);
+  renderDeclutter();
+  if (currentPage === 'dashboard') renderDashboard();
+}
+
+// ═══════════════════════════════════════════
+//  ONBOARDING
+// ═══════════════════════════════════════════
+
+function finishOnboarding() {
+  DB.onboardingDone = true;
+  saveDB();
+  document.getElementById('page-onboarding').style.display = 'none';
+  document.getElementById('app').style.display = 'block';
+  document.getElementById('bottom-nav').style.display = 'flex';
+  navigate('dashboard');
+}
+
+// ═══════════════════════════════════════════
+//  INIT
+// ═══════════════════════════════════════════
+
+function init() {
+  seedDemoData();
+
+  if (!DB.onboardingDone) {
+    document.getElementById('page-onboarding').style.display = 'flex';
+    document.getElementById('app').style.display = 'none';
+    document.getElementById('bottom-nav').style.display = 'none';
+  } else {
+    document.getElementById('page-onboarding').style.display = 'none';
+    document.getElementById('app').style.display = 'block';
+    document.getElementById('bottom-nav').style.display = 'flex';
+    navigate('dashboard');
+  }
+}
+
+// Chờ trạng thái đăng nhập trước khi khởi động app (thay vì gọi init() trực tiếp)
+sb.auth.onAuthStateChange((event, session) => {
+  if (session) startApp();
+  else showAuthGate();
+});
+
+if ('serviceWorker' in navigator) {
+  window.addEventListener('load', () => navigator.serviceWorker.register('/sw.js'));
+}
+</script>
+</body>
+</html>
