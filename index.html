@@ -529,11 +529,18 @@ async function startApp() {
     .eq('user_id', user.id)
     .maybeSingle();
 
-  if (!error && data && data.data && Object.keys(data.data).length) {
+  if (error) {
+    // Lỗi thật khi đọc cloud (RLS chặn, mất mạng, v.v.) — TUYỆT ĐỐI không được
+    // coi đây là "tài khoản mới chưa có data" rồi đẩy DB rỗng/cũ lên ghi đè cloud.
+    // Giữ nguyên DB cục bộ đang có và báo cho người dùng biết là chưa đồng bộ được.
+    console.error('Không đọc được dữ liệu từ cloud:', error.message);
+    showToast('⚠ Không tải được dữ liệu cloud, đang dùng dữ liệu trên máy này');
+  } else if (data && data.data && Object.keys(data.data).length) {
+    // Có data thật trên cloud → dùng nó
     DB = data.data;
   } else {
-    // Tài khoản mới chưa có data trên cloud: đẩy ngay data đang có trên trình
-    // duyệt này (nếu có) lên cloud, để không phải chờ tới lần lưu tiếp theo.
+    // Không lỗi và không có dòng nào (data === null): đây mới chắc chắn là
+    // tài khoản mới. Đẩy data cục bộ hiện có (nếu có) lên cloud để seed.
     pushToCloud();
   }
 
@@ -570,11 +577,17 @@ function pushToCloud() {
   if (!currentUser) return;
   clearTimeout(_pushTimer);
   _pushTimer = setTimeout(async () => {
-    await sb.from('app_data').upsert({
+    const { error } = await sb.from('app_data').upsert({
       user_id: currentUser.id,
       data: DB,
       updated_at: new Date().toISOString()
     });
+    if (error) {
+      // Trước đây lỗi ở đây bị nuốt im lặng, khiến người dùng tưởng đã lưu
+      // cloud thành công trong khi thực ra chưa lưu được gì.
+      console.error('Lỗi khi lưu dữ liệu lên cloud:', error.message);
+      showToast('⚠ Lưu cloud thất bại: ' + error.message);
+    }
   }, 800);
 }
 
