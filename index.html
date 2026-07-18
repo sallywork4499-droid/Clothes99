@@ -458,6 +458,22 @@
   </div>
 </div>
 
+<div class="modal-overlay" id="modal-backup" onclick="closeModalOutside(event,'modal-backup')">
+  <div class="modal-sheet">
+    <div class="modal-handle"></div>
+    <div class="modal-title">Sao lưu / Khôi phục dữ liệu</div>
+    <div class="modal-body" id="backup-modal-body">
+      <p style="font-size:13px;color:var(--text-muted);margin-bottom:14px">Xuất toàn bộ tủ đồ ra file .json để lưu trữ, hoặc nhập nhanh lại từ file đã xuất trước đó.</p>
+      <button class="btn btn-secondary btn-full" style="margin-bottom:10px" onclick="exportCurrentBackup()">⬇ Xuất file backup</button>
+      <label class="btn btn-ghost btn-full" style="cursor:pointer">
+        ⬆ Nhập file backup
+        <input type="file" accept="application/json" onchange="handleBackupFileSelected(event)" style="display:none">
+      </label>
+      <p style="font-size:12px;color:var(--text-muted);margin-top:10px">Sau khi chọn file, bạn sẽ được hỏi muốn thay thế toàn bộ hay chỉ bổ sung thêm vào tủ đồ hiện tại.</p>
+    </div>
+  </div>
+</div>
+
 <!-- TOAST -->
 <div id="toast"></div>
 
@@ -569,6 +585,120 @@ function exportBackup() {
   a.click();
   document.body.removeChild(a);
   URL.revokeObjectURL(url);
+}
+
+// Xuất TOÀN BỘ dữ liệu đang hiển thị (kể cả khi vừa đồng bộ từ cloud về, chưa chắc
+// đã kịp ghi vào localStorage) — dùng trong app, sau khi đã đăng nhập.
+function exportCurrentBackup() {
+  const blob = new Blob([JSON.stringify(DB)], { type: 'application/json' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = 'clothes99-backup-' + new Date().toISOString().slice(0,10) + '.json';
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+  showToast('✓ Đã tải file backup!');
+}
+
+// Khôi phục lại giao diện mặc định của modal Backup (nút Xuất/Nhập), phòng khi
+// lần mở trước đó đang dừng ở màn hình chọn Thay thế/Bổ sung.
+let _backupModalDefaultHtml = null;
+function resetBackupModal() {
+  const body = document.getElementById('backup-modal-body');
+  if (!body) return;
+  if (_backupModalDefaultHtml === null) _backupModalDefaultHtml = body.innerHTML;
+  else body.innerHTML = _backupModalDefaultHtml;
+  _pendingImportData = null;
+}
+
+// Đọc + parse file .json người dùng chọn, rồi hỏi họ muốn Thay thế toàn bộ hay
+// Bổ sung thêm vào tủ đồ hiện tại — chưa động gì tới DB ở bước này.
+let _pendingImportData = null;
+function handleBackupFileSelected(e) {
+  const file = e.target.files[0];
+  e.target.value = '';
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = function (ev) {
+    let parsed;
+    try {
+      parsed = JSON.parse(ev.target.result);
+    } catch (err) {
+      showToast('⚠ File không đọc được, không phải JSON hợp lệ');
+      return;
+    }
+    if (!parsed || !Array.isArray(parsed.items)) {
+      showToast('⚠ File không đúng định dạng backup của Clothes 99');
+      return;
+    }
+    _pendingImportData = parsed;
+    showImportChoice(parsed);
+  };
+  reader.readAsText(file);
+}
+
+function showImportChoice(parsed) {
+  const body = document.getElementById('backup-modal-body');
+  if (!body) return;
+  body.innerHTML = `
+    <p style="font-size:13px;color:var(--text-muted);margin-bottom:14px">
+      File có <strong>${parsed.items.length} món</strong>. Tủ đồ hiện tại đang có <strong>${DB.items.length} món</strong>. Bạn muốn:
+    </p>
+    <button class="btn btn-secondary btn-full" style="margin-bottom:8px" onclick="applyImport('merge')">➕ Bổ sung thêm vào tủ đồ hiện tại</button>
+    <button class="btn btn-danger btn-full" style="margin-bottom:8px" onclick="applyImport('replace')">🔁 Thay thế toàn bộ tủ đồ hiện tại</button>
+    <button class="btn btn-ghost btn-full" onclick="resetBackupModal()">Hủy</button>
+  `;
+}
+
+// Thực hiện nhập dữ liệu theo lựa chọn của người dùng:
+// - 'replace': ghi đè toàn bộ DB hiện tại bằng dữ liệu trong file.
+// - 'merge': giữ nguyên đồ hiện có, thêm đồ trong file vào — đổi id + mã đồ (itemCode)
+//   để tránh trùng với đồ đang có, và ánh xạ lại usageLogs/declutterActions theo id mới.
+function applyImport(mode) {
+  const parsed = _pendingImportData;
+  if (!parsed) return;
+
+  if (mode === 'replace') {
+    const ok = confirm(
+      `Thay thế sẽ XÓA toàn bộ ${DB.items.length} món hiện tại và thay bằng ${parsed.items.length} món trong file. ` +
+      `Không thể hoàn tác. Tiếp tục?`
+    );
+    if (!ok) return;
+
+    DB = parsed;
+    if (!DB.itemCounters) DB.itemCounters = {CLOTHING:0,FOOTWEAR:0,COSMETIC:0,BAG:0};
+    if (!DB.settings) DB.settings = {monthlyBudget:0};
+    if (!DB.usageLogs) DB.usageLogs = [];
+    if (!DB.declutterActions) DB.declutterActions = [];
+    DB.onboardingDone = true;
+  } else {
+    const ok = confirm(`Bổ sung ${parsed.items.length} món từ file vào tủ đồ hiện tại (đang có ${DB.items.length} món)?`);
+    if (!ok) return;
+
+    const idMap = {};
+    (parsed.items || []).forEach(it => {
+      const newId = genId();
+      idMap[it.id] = newId;
+      DB.items.push({ ...it, id: newId, itemCode: genItemCode(it.category) });
+    });
+    (parsed.usageLogs || []).forEach(l => {
+      const mappedIds = (l.itemIds || []).map(id => idMap[id]).filter(Boolean);
+      if (!mappedIds.length) return;
+      DB.usageLogs.push({ ...l, id: genId(), itemIds: mappedIds });
+    });
+    (parsed.declutterActions || []).forEach(a => {
+      if (!idMap[a.itemId]) return;
+      DB.declutterActions.push({ ...a, id: genId(), itemId: idMap[a.itemId] });
+    });
+  }
+
+  _pendingImportData = null;
+  saveDB();
+  closeModal('modal-backup');
+  showToast(mode === 'replace' ? '✓ Đã thay thế toàn bộ dữ liệu!' : '✓ Đã bổ sung đồ từ file!');
+  navigate('dashboard');
 }
 
 // Đẩy DB lên cloud, debounce để không gọi quá nhiều lần khi user thao tác liên tục
@@ -787,7 +917,12 @@ function getUsageLogs(itemId) {
 }
 
 function getUsageCount(itemId) {
-  return DB.usageLogs.filter(l => l.itemIds.includes(itemId)).length;
+  const logCount = DB.usageLogs.filter(l => l.itemIds.includes(itemId)).length;
+  // Cộng thêm số lần dùng người dùng tự nhập tay lúc thêm/sửa đồ (không có ngày cụ thể),
+  // để không bắt họ phải bấm "Ghi hôm nay" nhiều lần chỉ để nhập lại lịch sử cũ.
+  const item = getItem(itemId);
+  const manual = (item && item.manualUsageCount) || 0;
+  return logCount + manual;
 }
 
 function getLastUsed(itemId) {
@@ -849,7 +984,9 @@ function isSleeping(item) {
   const days = getDaysSinceLastUsed(item.id);
   const count = getUsageCount(item.id);
   const agedays = item.purchaseDate ? Math.floor((Date.now()-new Date(item.purchaseDate))/86400000) : 0;
-  if (days === null && agedays > 60) return true; // never used after 60 days
+  // Nếu đã có số lần dùng (kể cả nhập tay) thì không tính là "chưa dùng lần nào" chỉ vì
+  // không có ngày cụ thể — count ở dòng dưới đã gộp cả usageLogs lẫn manualUsageCount rồi.
+  if (days === null && count === 0 && agedays > 60) return true; // never used after 60 days
   if (days !== null && days > 90) return true;
   if (count <= 1 && agedays > 90) return true;
   return false;
@@ -1105,6 +1242,7 @@ function openModal(id) {
   const m = document.getElementById(id);
   if (!m) return;
   if (id === 'modal-log-usage') renderLogUsageModal();
+  if (id === 'modal-backup') resetBackupModal();
   m.classList.add('open');
 }
 function closeModal(id) {
@@ -1202,11 +1340,11 @@ function renderDashboard() {
       const weeks=i.purchaseDate?Math.max(1,Math.floor((Date.now()-new Date(i.purchaseDate))/604800000)):1;
       return {...i,_count:count,_avg:count/weeks};
     })
-    .sort((a,b)=>b._count-a._count)
+    .sort((a,b)=>b._avg-a._avg)
     .slice(0,3);
 
   if(freqItems.length>0){
-    html+=`<div class="section-hd"><span class="section-title">🔥 Đồ thường xuyên dùng</span></div>
+    html+=`<div class="section-hd"><span class="section-title">🔥 Top dùng nhiều nhất (lần/tuần)</span></div>
     <div class="gap-8" style="margin-bottom:18px">`;
     freqItems.forEach(item=>{
       const avgLabel=item._avg>=1?`${item._avg.toFixed(1)} lần/tuần`:'< 1 lần/tuần';
@@ -1276,6 +1414,10 @@ function renderDashboard() {
     <button class="quick-action" onclick="navigate('inventory')">
       <div class="quick-action-icon" style="color:var(--text-muted)">👗</div>
       <span class="quick-action-label">Tủ đồ</span>
+    </button>
+    <button class="quick-action" onclick="openModal('modal-backup')">
+      <div class="quick-action-icon" style="color:var(--text-muted)">💾</div>
+      <span class="quick-action-label">Backup</span>
     </button>
   </div>`;
 
@@ -1474,6 +1616,11 @@ function renderAddFields() {
   <div class="form-group">
     <label class="form-label">Ngày mua <span class="opt">tùy chọn</span></label>
     <input class="form-input" id="f-purchaseDate" type="date" value="${v('purchaseDate','')?.split('T')[0]||''}">
+  </div>
+  <div class="form-group">
+    <label class="form-label">Đã dùng bao nhiêu lần rồi? <span class="opt">tùy chọn</span></label>
+    <input class="form-input" id="f-manualUsageCount" type="number" min="0" placeholder="0" value="${v('manualUsageCount','')}">
+    <div class="form-hint">Nhập nhanh nếu món này bạn đã dùng nhiều lần trước khi thêm vào app — khỏi cần bấm "Ghi hôm nay" từng lần cho đủ số. Ngày dùng hàng ngày vẫn ghi lại như bình thường ở nút "+ Ghi hôm nay".</div>
   </div>
 `;
   const existingImg = (v('imageUrls',[])||[])[0]||'';
@@ -1703,6 +1850,7 @@ function submitItem(e) {
     brand: gv('f-brand'),
     price: parseFloat(gv('f-price')) || null,
     purchaseDate: gv('f-purchaseDate') ? new Date(gv('f-purchaseDate')).toISOString() : null,
+    manualUsageCount: parseInt(gv('f-manualUsageCount')) || 0,
     imageUrls: _pendingImage ? [_pendingImage] : (editingItem&&editingItem.imageUrls ? editingItem.imageUrls : []),
     notes: gv('f-notes'),
     identityTags: gv('f-identityTags').split(',').filter(Boolean),
@@ -1871,6 +2019,12 @@ function renderDetail(id) {
   let detailHtml = `<div class="detail-section">
     ${fields.filter(Boolean).map(([k,v2]) => `<div class="detail-row"><span class="detail-key">${k}</span><span class="detail-val">${v2}</span></div>`).join('')}
   </div>`;
+
+  if (item.manualUsageCount) {
+    detailHtml += `<div class="detail-section" style="padding-top:0">
+      <div style="font-size:12px;color:var(--text-muted)">+ ${item.manualUsageCount} lần đã nhập tay lúc thêm đồ (không có ngày cụ thể)</div>
+    </div>`;
+  }
 
   // Usage history
   if (logs.length > 0) {
