@@ -679,27 +679,40 @@ async function markOutfitWorn(id) {
   const itemIds = flattenSlotIds(o.slots||{});
   if (!itemIds.length) { showToast('Mix này chưa có món nào để ghi nhận'); return; }
 
-  const { data, error } = await sb.from('app_data').select('data').eq('user_id', currentUser.id).maybeSingle();
-  if (error || !data || !data.data || !Array.isArray(data.data.items)) {
-    showToast('⚠ Không đọc được tủ đồ, thử lại sau');
-    return;
-  }
-  const appData = data.data;
-  if (!Array.isArray(appData.usageLogs)) appData.usageLogs = [];
-  appData.usageLogs.push({
-    id: genId(),
-    itemIds,
-    usedAt: new Date().toISOString(),
-    notes: 'Mix: ' + o.name,
-    createdAt: new Date().toISOString(),
-  });
+  // Ghi lượt dùng vào app_data bằng "khoá lạc quan" theo updated_at: nếu trang chính (index.html)
+  // vừa lưu trong lúc mình đang xử lý thì đọc lại bản mới nhất rồi thử lại — không bao giờ ghi đè mù.
+  let saved = false;
+  for (let attempt = 0; attempt < 4 && !saved; attempt++) {
+    const { data, error } = await sb.from('app_data').select('data, updated_at').eq('user_id', currentUser.id).maybeSingle();
+    if (error || !data || !data.data || !Array.isArray(data.data.items)) {
+      showToast('⚠ Không đọc được tủ đồ, thử lại sau');
+      return;
+    }
+    const appData = data.data;
+    if (!Array.isArray(appData.usageLogs)) appData.usageLogs = [];
+    appData.usageLogs.push({
+      id: genId(),
+      itemIds,
+      usedAt: new Date().toISOString(),
+      notes: 'Mix: ' + o.name,
+      createdAt: new Date().toISOString(),
+    });
+    appData._updatedAt = new Date().toISOString();
 
-  const { error: upErr } = await sb.from('app_data').upsert({
-    user_id: currentUser.id, data: appData, updated_at: new Date().toISOString()
-  });
-  if (upErr) {
-    console.error(upErr);
-    showToast('⚠ Ghi nhận thất bại: ' + upErr.message);
+    let q = sb.from('app_data')
+      .update({ data: appData, updated_at: new Date().toISOString() })
+      .eq('user_id', currentUser.id);
+    if (data.updated_at) q = q.eq('updated_at', data.updated_at);
+    const { data: upd, error: upErr } = await q.select('updated_at');
+    if (upErr) {
+      console.error(upErr);
+      showToast('⚠ Ghi nhận thất bại: ' + upErr.message);
+      return;
+    }
+    saved = !!(upd && upd.length);   // 0 dòng = có người khác vừa ghi → vòng lặp đọc lại và thử tiếp
+  }
+  if (!saved) {
+    showToast('⚠ Dữ liệu đang thay đổi liên tục, vui lòng thử lại');
     return;
   }
 

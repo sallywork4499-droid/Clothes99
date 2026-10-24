@@ -530,38 +530,132 @@ async function submitAuth() {
 }
 
 async function logoutUser() {
-  await sb.auth.signOut();
+  // Đẩy nốt thay đổi chưa kịp lưu lên cloud TRƯỚC khi đăng xuất
+  try { await flushPush(); } catch(e) {}
+  const stillDirty = isDirty();
+  try { await sb.auth.signOut(); } catch(e) { console.error(e); }
+  _startedFor = null; currentUser = null; _syncReady = false; _cloudUpdatedAt = null;
+  // Chỉ xoá dữ liệu cục bộ khi đã chắc chắn nằm an toàn trên cloud (tránh lộ data sang tài khoản khác)
+  if (!stillDirty) {
+    try { localStorage.removeItem(STORAGE_KEY); localStorage.removeItem(OWNER_KEY); } catch(e) {}
+    DB = defaultDB();
+  }
+}
+
+// ═══════════════════════════════════════════
+//  ĐỒNG BỘ CLOUD AN TOÀN (chống mất dữ liệu)
+//  - dirty flag: có thay đổi trên máy chưa lên cloud → khi đăng nhập lại KHÔNG bị cloud cũ ghi đè
+//  - owner: dữ liệu cục bộ thuộc tài khoản nào → không bao giờ đẩy data tài khoản A sang B
+//  - optimistic lock theo updated_at: nếu cloud vừa bị trang khác (Mix đồ) ghi, gộp lại rồi mới lưu
+//  - chỉ đẩy lên cloud sau khi ĐÃ đọc cloud thành công
+// ═══════════════════════════════════════════
+const OWNER_KEY = 'clothes99_owner';
+const DIRTY_KEY = 'clothes99_dirty';
+let _startedFor = null, _starting = null;
+let _syncReady = false, _cloudUpdatedAt = null, _localVer = 0;
+let _pushTimer = null, _pushing = false, _pushQueued = false, _retryTimer = null, _syncing = false;
+
+function isDirty() { try { return localStorage.getItem(DIRTY_KEY) === '1'; } catch(e) { return false; } }
+function setDirty(v) { try { v ? localStorage.setItem(DIRTY_KEY, '1') : localStorage.removeItem(DIRTY_KEY); } catch(e) {} }
+function dbSize(d) { return d ? (d.items||[]).length + (d.usageLogs||[]).length + (d.declutterActions||[]).length : 0; }
+function ensureDefaults() {
+  if (!DB.items) DB.items = [];
+  if (!DB.usageLogs) DB.usageLogs = [];
+  if (!DB.declutterActions) DB.declutterActions = [];
+  if (!DB.itemCounters) DB.itemCounters = {CLOTHING:0,FOOTWEAR:0,COSMETIC:0,BAG:0};
+  if (!DB.settings) DB.settings = {monthlyBudget:0};
+}
+// Giữ dữ liệu trên máy (local thắng) nhưng thêm các lượt dùng chỉ có trên cloud (vd. ghi từ trang Mix đồ)
+function reconcile(localDb, cloudDb) {
+  const out = localDb;
+  if (!out.usageLogs) out.usageLogs = [];
+  const have = new Set(out.usageLogs.map(l => l.id));
+  const itemIds = new Set((out.items || []).map(i => i.id));
+  ((cloudDb && cloudDb.usageLogs) || []).forEach(l => {
+    if (have.has(l.id)) return;
+    const ids = (l.itemIds || []).filter(x => itemIds.has(x));
+    if (ids.length) out.usageLogs.push({ ...l, itemIds: ids });
+  });
+  return out;
+}
+
+// Trả về true nếu đọc cloud thành công và đã quyết định xong DB nào được dùng
+async function syncFromCloud() {
+  if (_syncing) return false;
+  _syncing = true;
+  try {
+    const { data, error } = await sb.from('app_data')
+      .select('data, updated_at').eq('user_id', currentUser.id).maybeSingle();
+    if (error) {
+      console.error('Không đọc được dữ liệu từ cloud:', error.message);
+      showToast('⚠ Không tải được dữ liệu cloud, đang dùng dữ liệu trên máy này');
+      return false;          // _syncReady vẫn false → KHÔNG đẩy gì lên cloud
+    }
+
+    let owner = null;
+    try { owner = localStorage.getItem(OWNER_KEY); } catch(e) {}
+    let localDb = DB, dirty = isDirty();
+
+    // Dữ liệu cục bộ thuộc tài khoản khác → bỏ, không đụng tới cloud của tài khoản này
+    if (owner && owner !== currentUser.id) {
+      localDb = defaultDB(); dirty = false; setDirty(false);
+    }
+
+    const cloudDb = (data && data.data && Object.keys(data.data).length) ? data.data : null;
+    _cloudUpdatedAt = data ? (data.updated_at || null) : null;
+
+    let useLocal = false;
+    if (!cloudDb) {
+      useLocal = true;                         // chưa có gì trên cloud → seed bằng data cục bộ
+      if (dbSize(localDb) > 0 || localDb.onboardingDone) dirty = true;
+    } else if (dirty) {
+      useLocal = true;                         // có thay đổi chưa lên cloud → giữ bản trên máy
+    } else if (!owner && dbSize(localDb) > dbSize(cloudDb)) {
+      useLocal = true; dirty = true;           // lần đầu chạy bản mới: bản máy đầy đủ hơn cloud (cloud từng lưu hỏng)
+    }
+
+    if (useLocal) {
+      DB = cloudDb ? reconcile(localDb, cloudDb) : localDb;
+      ensureDefaults();
+      persistLocal();
+      if (dirty) { setDirty(true); }
+    } else {
+      DB = cloudDb;
+      ensureDefaults();
+      persistLocal();
+      setDirty(false);
+    }
+    try { localStorage.setItem(OWNER_KEY, currentUser.id); } catch(e) {}
+    _syncReady = true;
+    if (isDirty()) pushToCloud(true);
+    return true;
+  } finally {
+    _syncing = false;
+  }
 }
 
 // Kéo dữ liệu từ cloud về (nếu có), gộp vào DB cục bộ rồi khởi động app
 async function startApp() {
-  const { data: { user } } = await sb.auth.getUser();
-  if (!user) return;
-  currentUser = user;
+  if (_starting) return _starting;
+  _starting = (async () => {
+    const { data: { user } } = await sb.auth.getUser();
+    if (!user) return;
+    if (_startedFor === user.id) return;       // đã khởi động rồi (TOKEN_REFRESHED, đổi tab...) → bỏ qua
+    currentUser = user;
+    _syncReady = false;
+    await syncFromCloud();
+    _startedFor = user.id;
+    document.getElementById('auth-gate').style.display = 'none';
+    init();
+  })();
+  try { await _starting; } finally { _starting = null; }
+}
 
-  const { data, error } = await sb
-    .from('app_data')
-    .select('data')
-    .eq('user_id', user.id)
-    .maybeSingle();
-
-  if (error) {
-    // Lỗi thật khi đọc cloud (RLS chặn, mất mạng, v.v.) — TUYỆT ĐỐI không được
-    // coi đây là "tài khoản mới chưa có data" rồi đẩy DB rỗng/cũ lên ghi đè cloud.
-    // Giữ nguyên DB cục bộ đang có và báo cho người dùng biết là chưa đồng bộ được.
-    console.error('Không đọc được dữ liệu từ cloud:', error.message);
-    showToast('⚠ Không tải được dữ liệu cloud, đang dùng dữ liệu trên máy này');
-  } else if (data && data.data && Object.keys(data.data).length) {
-    // Có data thật trên cloud → dùng nó
-    DB = data.data;
-  } else {
-    // Không lỗi và không có dòng nào (data === null): đây mới chắc chắn là
-    // tài khoản mới. Đẩy data cục bộ hiện có (nếu có) lên cloud để seed.
-    pushToCloud();
-  }
-
-  document.getElementById('auth-gate').style.display = 'none';
-  init();
+// Nếu lần đọc cloud trước đó lỗi, thử lại khi có mạng / quay lại app
+async function retrySync() {
+  if (!currentUser || _syncReady || _syncing) return;
+  const ok = await syncFromCloud();
+  if (ok) { showToast('✓ Đã đồng bộ lại với cloud'); init(); }
 }
 
 function showAuthGate() {
@@ -701,25 +795,74 @@ function applyImport(mode) {
   navigate('dashboard');
 }
 
-// Đẩy DB lên cloud, debounce để không gọi quá nhiều lần khi user thao tác liên tục
-let _pushTimer = null;
-function pushToCloud() {
-  if (!currentUser) return;
+// Đẩy DB lên cloud (debounce ngắn). Chỉ chạy khi đã đọc cloud thành công (_syncReady).
+function pushToCloud(immediate) {
+  if (!currentUser || !_syncReady) return;
   clearTimeout(_pushTimer);
-  _pushTimer = setTimeout(async () => {
-    const { error } = await sb.from('app_data').upsert({
-      user_id: currentUser.id,
-      data: DB,
-      updated_at: new Date().toISOString()
-    });
-    if (error) {
-      // Trước đây lỗi ở đây bị nuốt im lặng, khiến người dùng tưởng đã lưu
-      // cloud thành công trong khi thực ra chưa lưu được gì.
-      console.error('Lỗi khi lưu dữ liệu lên cloud:', error.message);
-      showToast('⚠ Lưu cloud thất bại: ' + error.message);
-    }
-  }, 800);
+  _pushTimer = setTimeout(doPush, immediate ? 0 : 400);
 }
+
+async function doPush() {
+  if (!currentUser || !_syncReady) return;
+  if (_pushing) { _pushQueued = true; return; }
+  _pushing = true;
+  let ok = false;
+  try {
+    for (let attempt = 0; attempt < 3 && !ok; attempt++) {
+      const ver = _localVer;
+      const now = new Date().toISOString();
+      if (_cloudUpdatedAt) {
+        // Chỉ ghi nếu cloud chưa bị ai khác (vd. trang Mix đồ) thay đổi kể từ lần đọc cuối
+        const res = await sb.from('app_data')
+          .update({ data: DB, updated_at: now })
+          .eq('user_id', currentUser.id).eq('updated_at', _cloudUpdatedAt)
+          .select('updated_at');
+        if (res.error) throw res.error;
+        if (!res.data || !res.data.length) {
+          const r = await sb.from('app_data').select('data, updated_at').eq('user_id', currentUser.id).maybeSingle();
+          if (r.error) throw r.error;
+          if (r.data) { DB = reconcile(DB, r.data.data || {}); _cloudUpdatedAt = r.data.updated_at || null; }
+          else { _cloudUpdatedAt = null; }
+          _localVer++; persistLocal();
+          continue;                              // thử lại với bản đã gộp
+        }
+        _cloudUpdatedAt = res.data[0].updated_at;
+      } else {
+        const res = await sb.from('app_data')
+          .upsert({ user_id: currentUser.id, data: DB, updated_at: now })
+          .select('updated_at');
+        if (res.error) throw res.error;
+        _cloudUpdatedAt = (res.data && res.data[0]) ? res.data[0].updated_at : null;
+      }
+      if (ver === _localVer) setDirty(false);   // không có thay đổi mới trong lúc đang lưu
+      ok = true;
+    }
+    if (!ok) throw new Error('Dữ liệu cloud liên tục thay đổi, sẽ thử lại');
+  } catch (e) {
+    console.error('Lỗi khi lưu dữ liệu lên cloud:', e && e.message);
+    showToast('⚠ Lưu cloud thất bại, sẽ tự thử lại: ' + (e && e.message ? e.message : ''));
+    clearTimeout(_retryTimer);
+    _retryTimer = setTimeout(() => { if (isDirty()) pushToCloud(true); }, 8000);
+  } finally {
+    _pushing = false;
+    if (_pushQueued) { _pushQueued = false; pushToCloud(); }
+  }
+}
+
+// Đẩy ngay lập tức (khi ẩn app / đăng xuất), chờ tối đa ~4s cho lần đẩy đang chạy
+async function flushPush() {
+  if (!currentUser || !_syncReady || !isDirty()) return;
+  clearTimeout(_pushTimer);
+  for (let i = 0; i < 40 && _pushing; i++) await new Promise(r => setTimeout(r, 100));
+  await doPush();
+}
+
+document.addEventListener('visibilitychange', () => {
+  if (document.visibilityState === 'hidden') { flushPush(); }
+  else { retrySync(); if (isDirty()) pushToCloud(true); }
+});
+window.addEventListener('pagehide', () => { flushPush(); });
+window.addEventListener('online', () => { retrySync(); if (isDirty()) pushToCloud(true); });
 
 // ═══════════════════════════════════════════
 //  DATA LAYER
@@ -727,16 +870,31 @@ function pushToCloud() {
 
 const STORAGE_KEY = 'clothes99_v1';
 
+function defaultDB() {
+  return { items:[], usageLogs:[], declutterActions:[], onboardingDone:false, itemCounters:{CLOTHING:0,FOOTWEAR:0,COSMETIC:0,BAG:0}, settings:{monthlyBudget:0} };
+}
+
 function loadDB() {
   try {
     const raw = localStorage.getItem(STORAGE_KEY);
     if (raw) return JSON.parse(raw);
   } catch(e){}
-  return { items:[], usageLogs:[], declutterActions:[], onboardingDone:false, itemCounters:{CLOTHING:0,FOOTWEAR:0,COSMETIC:0,BAG:0}, settings:{monthlyBudget:0} };
+  return defaultDB();
+}
+
+let _lsWarned = false;
+function persistLocal() {
+  try { localStorage.setItem(STORAGE_KEY, JSON.stringify(DB)); }
+  catch(e) {
+    if (!_lsWarned) { _lsWarned = true; showToast('⚠ Bộ nhớ máy đầy, dữ liệu vẫn được lưu lên cloud'); }
+  }
 }
 
 function saveDB() {
-  try { localStorage.setItem(STORAGE_KEY, JSON.stringify(DB)); } catch(e){}
+  DB._updatedAt = new Date().toISOString();
+  _localVer++;
+  persistLocal();
+  setDirty(true);          // có thay đổi chưa chắc đã lên cloud
   pushToCloud();
 }
 
@@ -2579,8 +2737,14 @@ function init() {
 
 // Chờ trạng thái đăng nhập trước khi khởi động app (thay vì gọi init() trực tiếp)
 sb.auth.onAuthStateChange((event, session) => {
-  if (session) startApp();
-  else showAuthGate();
+  if (session) {
+    // Không await supabase trong callback này (tránh deadlock); bỏ qua TOKEN_REFRESHED/SIGNED_IN lặp lại
+    if (event === 'TOKEN_REFRESHED' || event === 'USER_UPDATED') return;
+    setTimeout(startApp, 0);
+  } else {
+    _startedFor = null; currentUser = null; _syncReady = false;
+    showAuthGate();
+  }
 });
 
 if ('serviceWorker' in navigator) {
